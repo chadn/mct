@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Metra Real Time</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
+    <style>
+    body {
+        font-family: Verdana, Helvetica, sans-serif;
+    }
+    #content a {
+      display:block;
+    }
+    table td {
+      background-color: #EEE;
+      padding: 5px;
+    }
+    </style>
+</head>
+<body>
+    <!--[if lt IE 7]>
+        <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+    <![endif]-->
+
+    <!-- Add your site or application content here -->
+    <div id="content">Loading Train data ...
+        <a href="?C=MD-N&O=HEALY&D=LAKECOOKRD">Example: ?C=MD-N&O=HEALY&D=LAKECOOKRD</a>
+        <a href="?C=MD-N&O=LAKECOOKRD&D=HEALY">Example: ?C=MD-N&O=LAKECOOKRD&D=HEALY</a>
+        <!--
+        <a>&nbsp;</a>
+        <a href="?C=UP-N">UP-N: Union Pacific / North Line</a>
+        <a href="?C=MD-N">MD-N: Milwaukee District / North Line</a>
+        <a href="?C=NCS">North Central Service</a>
+        <a href="?C=UP-NW">Union Pacific / Northwest Line</a>
+        <a href="?C=MD-W">Milwaukee District / West Line</a>
+        <a href="?C=UP-W">Union Pacific / West Line</a>
+        <a href="?C=BNSF">BNSF Railway</a>
+        <a href="?C=HC">Heritage Corridor</a>
+        <a href="?C=SWS">SouthWest Service</a>
+        <a href="?C=RI">Rock Island District</a>
+        <a href="?C=ME">Metra Electric District</a>
+      -->
+    </div>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.2/modernizr.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
+    <!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
+    <script>
+        (function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
+        function(){(b[l].q=b[l].q||[]).push(arguments)});b[l].l=+new Date;
+        e=o.createElement(i);r=o.getElementsByTagName(i)[0];
+        e.src='//www.google-analytics.com/analytics.js';
+        r.parentNode.insertBefore(e,r)}(window,document,'script','ga'));
+        ga('create','UA-2767105-1');ga('send','pageview');
+    </script>
+
+    <script>
+$(document).ready(function(){
+  var mrt = MetraRealTime();
+});
+
+function getParameterByName(name) {
+    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+        results = regex.exec(location.search);
+    return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+};
+
+var MetraRealTime = function () {
+    if ( !(this instanceof arguments.callee) )
+        return new MetraRealTime();
+    return this.init(arguments);
+};
+
+MetraRealTime.prototype.init = function() {
+    var me = this;
+    // defaults
+    me.selector = '#content';
+    me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
+    me.reqType = 'POST';
+    me.stationRequest = {
+        Corridor : getParameterByName('C'),
+        Origin : getParameterByName('O'),
+        Destination : getParameterByName('D')
+    };
+    if (!me.stationRequest.Corridor) return;
+    if (me.stationRequest.Origin && me.stationRequest.Destination) {
+        me.reqData();
+    } else {
+        me.showStations(me.stationRequest.Corridor);
+    }
+    console.log('MetraRealTime init complete', me);
+    return this;
+};
+
+MetraRealTime.prototype.updateHtml = function(sel) {
+    var me = this;
+    var html;
+    sel = sel || me.selector;
+    html = '<p>Last Updated: '+ me.trainInfo.updated +'</p>';
+    html += '<table><thead><td>Station</td><td>Train</td><td>Est Dept</td><td>Sched Dept</td></thead>';
+    $.each(['train1', 'train2', 'train3', 'train4'], function(indx,train) {
+        if (!me.respJson[train]) return;
+        var t = me.respJson[train];
+        me.trainInfo.trains.push(t);
+
+        html += '<tr><td>'+ t.dpt_station +'</td>';
+        html += '<td>'+ t.train_num +'</td>';
+        html += '<td>'+ (t.estimated_dpt_time == t.scheduled_dpt_time ? 'On Time' : me.parseMetraDate(t.estimated_dpt_time) ) +'</td>';
+        html += '<td>'+ me.parseMetraDate(t.scheduled_dpt_time) +'</td>';
+        html += '</tr>';
+    });
+    html += '</table>'
+    $(sel).html(html);
+};
+
+MetraRealTime.prototype.parseResponse = function(data) {
+    var me = this;
+    me.respData = data;
+    console.log('ajax success:', data);
+    try {
+      me.respJson = JSON.parse(data.d);
+      me.trainInfo = {
+          updated: me.parseMetraDate(me.respJson.responseTime),
+          trains: []
+      }
+      me.updateHtml();
+      console.log("parsed", me.trainInfo);
+    } catch (e) {
+      console.log("Trouble parsing response", data, e);
+    }
+};
+
+MetraRealTime.prototype.parseMetraDate = function(dateStr) {
+    try {
+        var ms = dateStr.match(/Date\((\d+)\)/)[1];
+        var d = new Date(parseInt(ms,10));
+        console.log('parseMetraDate',ms,d);
+
+        var str = d.getHours() - (d.getHours() > 12 ? 12 : 0);
+        str += ':' + (d.getMinutes() < 10 ? '0':'') + d.getMinutes();
+        str += ':' + (d.getSeconds() < 10 ? '0':'') + d.getSeconds();
+        return str;
+    } catch (e) {
+        console.log('Trouble with parseMetraDate('+dateStr+')');
+        return '';
+    }
+};
+
+
+MetraRealTime.prototype.reqData = function() {
+    var me = this;
+    // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
+    me.stationRequest.timestamp = "/Date(" + new Date().getTime() + "-0000)/";
+    try {
+      me.reqJson = JSON.stringify({ stationRequest: me.stationRequest });
+    } catch (e) {
+      console.log('Trouble with JSON.stringify', e);
+      $('#content').html('Trouble with JSON.stringify');
+    }
+    console.log('MetraRealTime.reqData ...');
+    $.ajax({
+        url: me.reqUrl,
+        type: me.reqType,
+        contentType: 'application/json; charset=UTF-8',
+        dataType: 'json',
+        data: me.reqJson,
+        success: function(data) {
+            me.parseResponse(data);
+        }
+    });
+    return me;
+};
+
+//curl 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json?trackerNumber=0&trainLineId=MD-N' -H 'Pragma: no-cache' -H 'Accept-Encoding: gzip,deflate,sdch' -H 'Accept-Language: en-US,en;q=0.8' -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.125 Safari/537.36' -H 'Accept: */*' -H 'Referer: http://metrarail.com/metra/en/home.html' -H 'X-Requested-With: XMLHttpRequest' -H 'Cookie: metraAuth=; wapAuth=; METRADAY=rMlwDWQAUDYHW6AH7eoDToyJXxcoPFf/hbQsi5sMQO60gjmQYxy7HjggC27/jv2BXliaiWDoZ3peNg==; __utma=38421116.1975373705.1405958249.1405960938.1405970808.3; __utmb=38421116.1.10.1405970808; __utmc=38421116; __utmz=38421116.1405970808.3.3.utmcsr=store.metrarail.com|utmccn=(referral)|utmcmd=referral|utmcct=/store/account/login_or_register.jsp; JSESSIONID=65e8b9df-74cb-44e2-ba1b-2f669e31fd1f' -H 'Connection: keep-alive' -H 'Cache-Control: no-cache' --compressed
+MetraRealTime.prototype.showStations = function(C) {
+      $.ajax({
+        url: 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json?trackerNumber=0&trainLineId=' + C,
+        //contentType: 'application/json; charset=UTF-8',
+        success: function(data) {
+            console.log('showStations', data)
+        }
+    });
+
+}
+
+    </script>
+
+</body>
+</html>
