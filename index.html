@@ -15,12 +15,40 @@
     body {
         font-family: Verdana, Helvetica, sans-serif;
     }
-    #content a {
+    p {margin:0;}
+    .logo {
       display:block;
+      float:left;
+      width:118px;
+      height:51px;
     }
-    table td {
+    .status {
+      display:block;
+      float:left;
+      padding-left:10px;
+    }
+    td {
       background-color: #EEE;
       padding: 5px;
+    }
+    thead td,
+    tr:nth-child(even)  td {
+      background-color: #DDD;
+    }
+    .cookies a,
+    .help a {
+      display:block;
+    }
+    .row {
+      padding-top:10px;
+    }
+    .cf:before,
+    .cf:after {
+        content: " "; /* 1 */
+        display: table; /* 2 */
+    }
+    .cf:after {
+        clear: both;
     }
     </style>
 </head>
@@ -28,11 +56,24 @@
     <!--[if lt IE 7]>
         <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
-
+    <div class='row cf'>
+      <a href="?" class='logo'>
+        <img src="http://metrarail.com/content/dam/metra/images/logos/logo.png" alt="back to home">
+      </a>
+      <p class='status'>Loading Train data ...</p>
+    </div>
     <!-- Add your site or application content here -->
-    <div id="content">Loading Train data ...
-        <a href="?C=MD-N&O=HEALY&D=LAKECOOKRD">Example: ?C=MD-N&O=HEALY&D=LAKECOOKRD</a>
-        <a href="?C=MD-N&O=LAKECOOKRD&D=HEALY">Example: ?C=MD-N&O=LAKECOOKRD&D=HEALY</a>
+    <div class="row cf traindata">
+    </div>
+    <div class='row cf cookies'>
+        <p>Recent Valid Requests:</p>
+    </div>
+    <div class='row help'>
+        <a>Examples</a>
+        <a href="?C=MD-N&O=HEALY&D=LAKECOOKRD">MD-N HEALY to LAKECOOKRD</a>
+        <a href="?C=MD-N&O=LAKECOOKRD&D=HEALY">MD-N LAKECOOKRD to HEALY</a>
+        <a href="?C=MD-N&O=CUS&D=LAKECOOKRD">MD-N Union St to LAKECOOKRD</a>
+        <a href="?C=UP-N&O=OTC&D=EVANSTON">UP-N Ogilvie to EVANSTON Davis</a>
         <!--
         <a>&nbsp;</a>
         <a href="?C=UP-N">UP-N: Union Pacific / North Line</a>
@@ -46,13 +87,13 @@
         <a href="?C=SWS">SouthWest Service</a>
         <a href="?C=RI">Rock Island District</a>
         <a href="?C=ME">Metra Electric District</a>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.2/modernizr.min.js"></script>
       -->
     </div>
 
-    <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.2/modernizr.min.js"></script>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-    <script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
-    <!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
     <script>
         (function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
         function(){(b[l].q=b[l].q||[]).push(arguments)});b[l].l=+new Date;
@@ -64,15 +105,9 @@
 
     <script>
 $(document).ready(function(){
-  var mrt = MetraRealTime();
+  window.mrt = MetraRealTime().go();
 });
 
-function getParameterByName(name) {
-    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
-    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
-        results = regex.exec(location.search);
-    return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
-};
 
 var MetraRealTime = function () {
     if ( !(this instanceof arguments.callee) )
@@ -83,57 +118,94 @@ var MetraRealTime = function () {
 MetraRealTime.prototype.init = function() {
     var me = this;
     // defaults
-    me.selector = '#content';
+    me.selectorData = '.traindata';
+    me.selectorStatus = '.status';
     me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
     me.reqType = 'POST';
+    me.cookieName = 'metra';
+    me.recentCount = 6;
     me.stationRequest = {
         Corridor : getParameterByName('C'),
         Origin : getParameterByName('O'),
         Destination : getParameterByName('D')
     };
-    if (!me.stationRequest.Corridor) return;
-    if (me.stationRequest.Origin && me.stationRequest.Destination) {
-        me.reqData();
-    } else {
-        me.showStations(me.stationRequest.Corridor);
-    }
     console.log('MetraRealTime init complete', me);
     return this;
 };
 
-MetraRealTime.prototype.updateHtml = function(sel) {
+MetraRealTime.prototype.go = function() {
+    var me = this;
+
+    if (!me.stationRequest.Corridor) {
+      me.updateStatus('Choose Corridor + Station');
+      return;
+    }
+    if (me.stationRequest.Origin && me.stationRequest.Destination) {
+        me.reqData(function(data) {
+            me.processResponse(data);
+        });
+    } else {
+        me.showCookies();
+        me.showStations(me.stationRequest.Corridor);
+    }
+    console.log('MetraRealTime go complete', me);
+    return this;
+};
+
+MetraRealTime.prototype.updateHtml = function() {
     var me = this;
     var html;
-    sel = sel || me.selector;
-    html = '<p>Last Updated: '+ me.trainInfo.updated +'</p>';
-    html += '<table><thead><td>Station</td><td>Train</td><td>Est Dept</td><td>Sched Dept</td></thead>';
+    html = '<table><thead><td>Station</td><td>Train</td><td>Est Dept</td><td>Sched Dept</td></thead>';
     $.each(['train1', 'train2', 'train3', 'train4'], function(indx,train) {
         if (!me.respJson[train]) return;
         var t = me.respJson[train];
+        var time = me.parseMetraDate(t.estimated_dpt_time);
+        if (time == '') {
+            console.log('updateHtml() skipping invalid train',t);
+            return;
+        }
         me.trainInfo.trains.push(t);
+        me.trainInfo.valid = true;
 
         html += '<tr><td>'+ t.dpt_station +'</td>';
         html += '<td>'+ t.train_num +'</td>';
-        html += '<td>'+ (t.estimated_dpt_time == t.scheduled_dpt_time ? 'On Time' : me.parseMetraDate(t.estimated_dpt_time) ) +'</td>';
+        html += '<td>'+ (t.estimated_dpt_time == t.scheduled_dpt_time ? 'On Time' : time) +'</td>';
         html += '<td>'+ me.parseMetraDate(t.scheduled_dpt_time) +'</td>';
         html += '</tr>';
     });
+    if (me.trainInfo.trains.length == 0) {
+        html += '<tr><td colspan=4>Invalid train data - Check query args</td></tr>';
+        me.trainInfo.valid = false;
+    }
     html += '</table>'
-    $(sel).html(html);
+    $(me.selectorData).html(html);
+    me.updateStatus('Last Updated: '+ me.trainInfo.updated);
 };
 
-MetraRealTime.prototype.parseResponse = function(data) {
+MetraRealTime.prototype.updateStatus = function(status, e) {
+    $(this.selectorStatus).html(status);
+    console.log(status, e);
+};
+
+
+MetraRealTime.prototype.processResponse = function(data) {
     var me = this;
     me.respData = data;
     console.log('ajax success:', data);
     try {
       me.respJson = JSON.parse(data.d);
+    } catch (e) {
+      console.log("Trouble converting to JSON", data, e);
+    }
+    try {
       me.trainInfo = {
           updated: me.parseMetraDate(me.respJson.responseTime),
           trains: []
       }
       me.updateHtml();
+      me.updateCookies();
       console.log("parsed", me.trainInfo);
+
     } catch (e) {
       console.log("Trouble parsing response", data, e);
     }
@@ -156,15 +228,43 @@ MetraRealTime.prototype.parseMetraDate = function(dateStr) {
 };
 
 
-MetraRealTime.prototype.reqData = function() {
+MetraRealTime.prototype.updateCookies = function() {
+    var me = this;
+    if (!me.trainInfo.valid) return;
+    $.cookie.json = true;
+    me.cookieJson = $.cookie(me.cookieName) || {};
+    me.cookieJson[location.search] = new Date().getTime();
+    $.cookie(me.cookieName, me.cookieJson);
+    console.log("updateCookies: ", me.cookieJson);
+    me.showCookies();
+};
+MetraRealTime.prototype.showCookies = function() {
+    var me = this;
+    var remaining = me.recentCount;
+    $.cookie.json = true;
+    me.cookieJson = $.cookie(me.cookieName) || {};
+    var sortable = [];
+    $.each(me.cookieJson, function(str, secs){
+        sortable.push([str, secs]);
+    });
+    sortable.sort(function(a, b) {return b[1] - a[1]})
+    $.each(sortable, function(i, v){
+        if (--remaining < 0) return;
+        var t = new Date(v[1]);
+        $('.cookies').append('<a title="'+ t +'" href="'+ v[0] +'">'+ v[0] +'</a>');
+    });
+    console.log("showCookies: ", me.cookieJson);
+};
+
+
+MetraRealTime.prototype.reqData = function(cb) {
     var me = this;
     // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
     me.stationRequest.timestamp = "/Date(" + new Date().getTime() + "-0000)/";
     try {
       me.reqJson = JSON.stringify({ stationRequest: me.stationRequest });
     } catch (e) {
-      console.log('Trouble with JSON.stringify', e);
-      $('#content').html('Trouble with JSON.stringify');
+      me.updateStatus('Trouble with JSON.stringify', e);
     }
     console.log('MetraRealTime.reqData ...');
     $.ajax({
@@ -173,9 +273,7 @@ MetraRealTime.prototype.reqData = function() {
         contentType: 'application/json; charset=UTF-8',
         dataType: 'json',
         data: me.reqJson,
-        success: function(data) {
-            me.parseResponse(data);
-        }
+        success: cb
     });
     return me;
 };
@@ -190,6 +288,18 @@ MetraRealTime.prototype.showStations = function(C) {
         }
     });
 
+}
+function getParameterByName(name) {
+    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+        results = regex.exec(location.search);
+    return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+};
+//This will sort your array
+function SortObjByVal(a, b){
+  var aName = a.name.toLowerCase();
+  var bName = b.name.toLowerCase(); 
+  return ((aName < bName) ? -1 : ((aName > bName) ? 1 : 0));
 }
 
     </script>
