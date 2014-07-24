@@ -121,7 +121,7 @@ MetraRealTime.prototype.init = function() {
     };
     me.initStations();
     var h = me.stationsHash;
-    // stationRequest is validated query args  
+    // stationRequest contains only valid Corridor, Origin, and Dest from query args  
     me.stationRequest = {
         Corridor    : h[me.query.C] ? me.query.C : '',
         Origin      : h[me.query.C] && h[me.query.C][me.query.O] ? me.query.O : '',
@@ -134,76 +134,53 @@ MetraRealTime.prototype.init = function() {
 MetraRealTime.prototype.go = function() {
     var me = this;
     if (me.stationRequest.Origin && me.stationRequest.Destination) {
+        // find time train departs Origin
         me.reqTrainData(me.stationRequest, function(data) {
-            var stationReq = {
-                Corridor    : me.stationRequest.Corridor,
-                Origin      : me.stationRequest.Destination,
-                Destination : me.finalStation(me.stationRequest)
-            }
-            if (stationReq.Origin == stationReq.Destination) {
-                // End station - skip getting times, since api won't have answers
-                me.processTrainTimes(data, {});
-                return;
-            }
-            me.reqTrainData(stationReq, function(data2) {
-                me.processTrainTimes(data, data2);
-            });
+            me.processTrainTimes(data);
         });
+        // find time train arrives (departs Destination)
+        var stationReq = {
+            Corridor    : me.stationRequest.Corridor,
+            Origin      : me.stationRequest.Destination,
+            Destination : me.finalStation(me.stationRequest)
+        }
+        if (stationReq.Origin == stationReq.Destination) {
+            // End station - skip getting times, since api won't have answers
+            return;
+        }
+        me.reqTrainData(stationReq, function(data2) {
+            me.processTrainTimes(data2);
+        });
+
     } else {
         me.showCookies();
         me.updateStatus('Choose Stations');
         me.showStations(me.stationRequest.Corridor, me.stationRequest.Origin);
-        //me.showStations('MD-N','PRAIRIEXNG');
+        //me.showStations('MD-N','HEALY');
     }
     console.log('MetraRealTime go complete. window.mrt = ', me);
     return this;
 };
 
-MetraRealTime.prototype.showTrainInfo = function() {
+MetraRealTime.prototype.aggregateTrainInfo = function(data) {
     var me = this;
-    var html;
-    html = '<table><thead><td>Station</td><td>Train</td><td>Est Dept</td><td>Sched Dept</td></thead>';
-    $.each(['train1', 'train2', 'train3', 'train4'], function(indx,train) {
-        if (!me.respJson1[train]) return;
-        var t = me.respJson1[train];
-        var time = me.parseMetraDate(t.estimated_dpt_time);
-        if (time == '') {
-            console.log('showTrainInfo() skipping invalid train',t);
-            return;
-        }
-        me.trainInfo.trains.push(t);
-        me.trainInfo.valid = true;
-
-        html += '<tr><td>'+ t.dpt_station +'</td>';
-        html += '<td>'+ t.train_num +'</td>';
-        html += '<td>'+ (t.estimated_dpt_time == t.scheduled_dpt_time ? 'On Time' : time) +'</td>';
-        html += '<td>'+ me.parseMetraDate(t.scheduled_dpt_time) +'</td>';
-        html += '</tr>';
-    });
-    if (me.trainInfo.trains.length == 0) {
-        html += '<tr><td colspan=4>Invalid train data - Check query args</td></tr>';
-        me.trainInfo.valid = false;
-    }
-    html += '</table>'
-    $(me.selectorTrain).html(html);
-    me.updateStatus('Last Updated: '+ me.trainInfo.updated);
-};
-
-MetraRealTime.prototype.aggregateTrainInfo = function() {
-    var me = this;
-    me.trainInfo = {
-        updated: me.parseMetraDate(me.respJson1.responseTime, true),
+    var json;
+    me.trainInfo = me.trainInfo || {
         valid: true,
         tObj: {},
         tList: []
     }
+    try {
+      json = JSON.parse(data.d);
+    } catch (e) {
+      console.log("Trouble converting to JSON", data, e);
+    }
     $.each(['train1', 'train2', 'train3'], function(indx,train) {
-        if (!me._aggregateTrainInfo(me.respJson1[train])) {
+        if (!me._aggregateTrainInfo(json[train])) {
               me.trainInfo.valid = false;
         }
-        me._aggregateTrainInfo(me.respJson2[train]);
     });
-    return me.trainInfo.t;
+    me.trainInfo.updated = me.parseMetraDate(json.responseTime, true);
 };
 
 MetraRealTime.prototype._aggregateTrainInfo = function(t) {
@@ -233,12 +210,15 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     html += '<td>'+ me.stationRequest.Destination +'<br>Est (Sched)</td>'
     html += '<td>To/From<br>Chicago</td></thead>';
     $.each(me.trainInfo.tObj, function(train_num, trainObj) {
-          html += '<tr>';
-          html += '<td>'+ train_num +'</td>';
-          html += '<td>'+ (trainObj[me.stationRequest.Origin] || '-') +'</td>';
-          html += '<td>'+ (trainObj[me.stationRequest.Destination] || '-') +'</td>';
-          html += '<td>'+ me.directionChicago +'</td>';
-          html += '</tr>';
+        if (!trainObj[me.stationRequest.Origin]) {
+          return; // skip trains that don't stop at Origin
+        }
+        html += '<tr>';
+        html += '<td>'+ train_num +'</td>';
+        html += '<td>'+ (trainObj[me.stationRequest.Origin] || '-') +'</td>';
+        html += '<td>'+ (trainObj[me.stationRequest.Destination] || '-') +'</td>';
+        html += '<td>'+ me.directionChicago +'</td>';
+        html += '</tr>';
     });
     if (me.trainInfo.tList.length == 0) {
         html += '<tr><td colspan=4>Invalid train data - Check query args</td></tr>';
@@ -254,23 +234,14 @@ MetraRealTime.prototype.updateStatus = function(status, e) {
     console.log(status, e);
 };
 
-
-MetraRealTime.prototype.processTrainTimes = function(data1, data2) {
+MetraRealTime.prototype.processTrainTimes = function(data) {
     var me = this;
     try {
-      me.respJson1 = JSON.parse(data1.d);
-      me.respJson2 = JSON.parse(data2.d);
+        me.aggregateTrainInfo(data);
+        me.showTrainInfo2();
+        me.updateCookies();
     } catch (e) {
-      console.log("Trouble converting to JSON", data1, data2, e);
-    }
-    try {
-      me.aggregateTrainInfo();
-      me.showTrainInfo2();
-      me.updateCookies();
-      console.log("parsed", me.trainInfo);
-
-    } catch (e) {
-      console.log("Trouble parsing response", data, e);
+        console.log("processTrainTimes: Trouble parsing response", data, e);
     }
 };
 
@@ -278,7 +249,7 @@ MetraRealTime.prototype.parseMetraDate = function(dateStr, inclSecs) {
     try {
         var ms = dateStr.match(/Date\((\d+)\)/)[1];
         var d = new Date(parseInt(ms,10));
-        console.log('parseMetraDate',ms,d);
+        //console.log('parseMetraDate',ms,d);
 
         var str = d.getHours() - (d.getHours() > 12 ? 12 : 0);
         str += ':' + (d.getMinutes() < 10 ? '0':'') + d.getMinutes();
@@ -300,7 +271,7 @@ MetraRealTime.prototype.updateCookies = function() {
     me.cookieJson = $.cookie(me.cookieName) || {};
     me.cookieJson[location.search] = new Date().getTime();
     $.cookie(me.cookieName, me.cookieJson);
-    console.log("updateCookies: ", me.cookieJson);
+    //console.log("updateCookies: ", me.cookieJson);
     me.showCookies();
 };
 MetraRealTime.prototype.showCookies = function() {
@@ -324,14 +295,14 @@ MetraRealTime.prototype.showCookies = function() {
         var t = new Date(v[1]);
         $('.cookies').append('<a title="'+ t +'" href="'+ v[0] +'">'+ v[0].substring(1) +'</a>');
     });
-    console.log("showCookies: ", me.cookieJson);
+    //console.log("showCookies: ", me.cookieJson);
 };
 
 
 MetraRealTime.prototype.reqTrainData = function(stationReq, cb) {
     var me = this;
     // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
-    stationReq.timestamp = "/Date(" + new Date().getTime() + "-0000)/";
+    stationReq.timestamp = stationReq.timestamp || "/Date(" + new Date().getTime() + "-0000)/";
     try {
         me.reqJson = JSON.stringify({ stationRequest: stationReq });
     } catch (e) {
@@ -363,6 +334,7 @@ MetraRealTime.prototype.showStations = function(C,O) {
     $.each(me.stationsRaw, function(i,co){
         console.log('showStations'+i+' corridor obj:', co);
         if (!me.stationsHash[C]) {
+            // choice 1: show options for Corridor
             html += '<a href="?C='+ co.C +'">'+ co.name +'</a>';
             return;
         }
