@@ -35,10 +35,13 @@
     tr:nth-child(even)  td {
       background-color: #DDD;
     }
+    .stations a,
     .cookies a,
     .help a {
       display:block;
+      padding: 3px 0;
     }
+    .help {display:none;}
     .row {
       padding-top:10px;
     }
@@ -57,7 +60,7 @@
         <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
     <div class='row cf'>
-      <a href="?" class='logo'>
+      <a href="/metra/" class='logo'>
         <img src="http://metrarail.com/content/dam/metra/images/logos/logo.png" alt="back to home">
       </a>
       <p class='status'>Loading Train data ...</p>
@@ -66,7 +69,6 @@
     <div class="row cf traindata">
     </div>
     <div class='row cf cookies'>
-        <p>Recent Valid Requests:</p>
     </div>
     <div class='row help'>
         <a>Examples</a>
@@ -74,25 +76,13 @@
         <a href="?C=MD-N&O=LAKECOOKRD&D=HEALY">MD-N LAKECOOKRD to HEALY</a>
         <a href="?C=MD-N&O=CUS&D=LAKECOOKRD">MD-N Union St to LAKECOOKRD</a>
         <a href="?C=UP-N&O=OTC&D=EVANSTON">UP-N Ogilvie to EVANSTON Davis</a>
-        <!--
-        <a>&nbsp;</a>
-        <a href="?C=UP-N">UP-N: Union Pacific / North Line</a>
-        <a href="?C=MD-N">MD-N: Milwaukee District / North Line</a>
-        <a href="?C=NCS">North Central Service</a>
-        <a href="?C=UP-NW">Union Pacific / Northwest Line</a>
-        <a href="?C=MD-W">Milwaukee District / West Line</a>
-        <a href="?C=UP-W">Union Pacific / West Line</a>
-        <a href="?C=BNSF">BNSF Railway</a>
-        <a href="?C=HC">Heritage Corridor</a>
-        <a href="?C=SWS">SouthWest Service</a>
-        <a href="?C=RI">Rock Island District</a>
-        <a href="?C=ME">Metra Electric District</a>
-
-    <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.2/modernizr.min.js"></script>
-      -->
     </div>
-
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <div class='row stations'>
+    </div>
+    <!--
+    <script src="jquery.min.js"></script>
+-->
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
     <script>
         (function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
@@ -118,41 +108,47 @@ var MetraRealTime = function () {
 MetraRealTime.prototype.init = function() {
     var me = this;
     // defaults
-    me.selectorData = '.traindata';
+    me.selectorTrain = '.traindata';
     me.selectorStatus = '.status';
     me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
     me.reqType = 'POST';
     me.cookieName = 'metra';
     me.recentCount = 6;
-    me.stationRequest = {
-        Corridor : getParameterByName('C'),
-        Origin : getParameterByName('O'),
-        Destination : getParameterByName('D')
+    me.query = {
+        C : getParameterByName('C'),
+        O : getParameterByName('O'),
+        D : getParameterByName('D')
     };
-    console.log('MetraRealTime init complete', me);
+    me.initStations();
+    var h = me.stationsHash;
+    // stationRequest is validated query args  
+    me.stationRequest = {
+        Corridor    : h[me.query.C] ? me.query.C : '',
+        Origin      : h[me.query.C] && h[me.query.C][me.query.O] ? me.query.O : '',
+        Destination : h[me.query.C] && h[me.query.C][me.query.D] ? me.query.D : ''
+    };
+    console.log('MetraRealTime init complete.');
     return this;
 };
 
 MetraRealTime.prototype.go = function() {
     var me = this;
-
-    if (!me.stationRequest.Corridor) {
-      me.updateStatus('Choose Corridor + Station');
-      return;
-    }
     if (me.stationRequest.Origin && me.stationRequest.Destination) {
+        me.finalStation();
         me.reqData(function(data) {
             me.processResponse(data);
         });
     } else {
         me.showCookies();
-        me.showStations(me.stationRequest.Corridor);
+        me.updateStatus('Choose Stations');
+        me.showStations(me.stationRequest.Corridor, me.stationRequest.Origin);
+        //me.showStations('MD-N','PRAIRIEXNG');
     }
-    console.log('MetraRealTime go complete', me);
+    console.log('MetraRealTime go complete. window.mrt = ', me);
     return this;
 };
 
-MetraRealTime.prototype.updateHtml = function() {
+MetraRealTime.prototype.showTrainInfo = function() {
     var me = this;
     var html;
     html = '<table><thead><td>Station</td><td>Train</td><td>Est Dept</td><td>Sched Dept</td></thead>';
@@ -161,7 +157,7 @@ MetraRealTime.prototype.updateHtml = function() {
         var t = me.respJson[train];
         var time = me.parseMetraDate(t.estimated_dpt_time);
         if (time == '') {
-            console.log('updateHtml() skipping invalid train',t);
+            console.log('showTrainInfo() skipping invalid train',t);
             return;
         }
         me.trainInfo.trains.push(t);
@@ -178,7 +174,7 @@ MetraRealTime.prototype.updateHtml = function() {
         me.trainInfo.valid = false;
     }
     html += '</table>'
-    $(me.selectorData).html(html);
+    $(me.selectorTrain).html(html);
     me.updateStatus('Last Updated: '+ me.trainInfo.updated);
 };
 
@@ -199,10 +195,10 @@ MetraRealTime.prototype.processResponse = function(data) {
     }
     try {
       me.trainInfo = {
-          updated: me.parseMetraDate(me.respJson.responseTime),
+          updated: me.parseMetraDate(me.respJson.responseTime, true),
           trains: []
       }
-      me.updateHtml();
+      me.showTrainInfo();
       me.updateCookies();
       console.log("parsed", me.trainInfo);
 
@@ -211,7 +207,7 @@ MetraRealTime.prototype.processResponse = function(data) {
     }
 };
 
-MetraRealTime.prototype.parseMetraDate = function(dateStr) {
+MetraRealTime.prototype.parseMetraDate = function(dateStr, inclSecs) {
     try {
         var ms = dateStr.match(/Date\((\d+)\)/)[1];
         var d = new Date(parseInt(ms,10));
@@ -219,7 +215,9 @@ MetraRealTime.prototype.parseMetraDate = function(dateStr) {
 
         var str = d.getHours() - (d.getHours() > 12 ? 12 : 0);
         str += ':' + (d.getMinutes() < 10 ? '0':'') + d.getMinutes();
-        str += ':' + (d.getSeconds() < 10 ? '0':'') + d.getSeconds();
+        if (inclSecs) {
+            str += ':' + (d.getSeconds() < 10 ? '0':'') + d.getSeconds();
+        }
         return str;
     } catch (e) {
         console.log('Trouble with parseMetraDate('+dateStr+')');
@@ -230,7 +228,7 @@ MetraRealTime.prototype.parseMetraDate = function(dateStr) {
 
 MetraRealTime.prototype.updateCookies = function() {
     var me = this;
-    if (!me.trainInfo.valid) return;
+    if (!(me.trainInfo.valid && $.cookie)) return;
     $.cookie.json = true;
     me.cookieJson = $.cookie(me.cookieName) || {};
     me.cookieJson[location.search] = new Date().getTime();
@@ -241,12 +239,18 @@ MetraRealTime.prototype.updateCookies = function() {
 MetraRealTime.prototype.showCookies = function() {
     var me = this;
     var remaining = me.recentCount;
+    if (!$.cookie) return;
     $.cookie.json = true;
     me.cookieJson = $.cookie(me.cookieName) || {};
     var sortable = [];
     $.each(me.cookieJson, function(str, secs){
         sortable.push([str, secs]);
     });
+    if (sortable.length == 0) {
+        console.log('showCookies: No cookies found, returning');
+        return;
+    }
+    $('.cookies').html('<p>Recent Valid Requests:</p>');
     sortable.sort(function(a, b) {return b[1] - a[1]})
     $.each(sortable, function(i, v){
         if (--remaining < 0) return;
@@ -262,9 +266,9 @@ MetraRealTime.prototype.reqData = function(cb) {
     // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
     me.stationRequest.timestamp = "/Date(" + new Date().getTime() + "-0000)/";
     try {
-      me.reqJson = JSON.stringify({ stationRequest: me.stationRequest });
+        me.reqJson = JSON.stringify({ stationRequest: me.stationRequest });
     } catch (e) {
-      me.updateStatus('Trouble with JSON.stringify', e);
+        me.updateStatus('Trouble with JSON.stringify', e);
     }
     console.log('MetraRealTime.reqData ...');
     $.ajax({
@@ -278,29 +282,145 @@ MetraRealTime.prototype.reqData = function(cb) {
     return me;
 };
 
-//curl 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json?trackerNumber=0&trainLineId=MD-N' -H 'Pragma: no-cache' -H 'Accept-Encoding: gzip,deflate,sdch' -H 'Accept-Language: en-US,en;q=0.8' -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.125 Safari/537.36' -H 'Accept: */*' -H 'Referer: http://metrarail.com/metra/en/home.html' -H 'X-Requested-With: XMLHttpRequest' -H 'Cookie: metraAuth=; wapAuth=; METRADAY=rMlwDWQAUDYHW6AH7eoDToyJXxcoPFf/hbQsi5sMQO60gjmQYxy7HjggC27/jv2BXliaiWDoZ3peNg==; __utma=38421116.1975373705.1405958249.1405960938.1405970808.3; __utmb=38421116.1.10.1405970808; __utmc=38421116; __utmz=38421116.1405970808.3.3.utmcsr=store.metrarail.com|utmccn=(referral)|utmcmd=referral|utmcct=/store/account/login_or_register.jsp; JSESSIONID=65e8b9df-74cb-44e2-ba1b-2f669e31fd1f' -H 'Connection: keep-alive' -H 'Cache-Control: no-cache' --compressed
-MetraRealTime.prototype.showStations = function(C) {
-      $.ajax({
-        url: 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json?trackerNumber=0&trainLineId=' + C,
-        //contentType: 'application/json; charset=UTF-8',
-        success: function(data) {
-            console.log('showStations', data)
+// C = Corridor
+// O = Origin
+// D = Destination
+MetraRealTime.prototype.showStations = function(C,O) {
+    var me = this;
+    var html = '';
+    console.log('showStations('+ C +','+ O +')');
+    if (!me.stationsHash[C]) {
+        // choice 1: show options for Corridor
+        html += '<p>Choose Valid Corridor:</p>';
+    }
+    $.each(me.stationsRaw, function(i,co){
+        console.log('showStations'+i+' corridor obj:', co);
+        if (!me.stationsHash[C]) {
+            html += '<a href="?C='+ co.C +'">'+ co.name +'</a>';
+            return;
+        }
+        // choice 2 and 3: given Corridor, show options for Stations
+
+        if (co.C != C) return;
+        html += '<p>'+ co.name +' Stations</p>';
+        console.log('showStations-2');
+        if (me.stationsHash[C][O]) {
+            // choice 3
+            html += '<p> Origin: '+ me.stationsHash[C][O] +'<br>Choose Destination</p>';
+        } else {
+            // choice 2
+            html += '<p>Choose Valid Origin:</p>';
+        }
+        // list stations in train stop order, aka stationsRaw
+        $.each(co.stations, function(i,so){
+            console.log('showStations'+i+' station obj:', so);
+            if (me.stationsHash[C][O]) {
+                if (so.id == O) {
+                    html += '<a>'+ so.name +'</a>';
+                } else {
+                    html += '<a href="?C='+ co.C +'&O='+O+'&D='+ so.id +'">'+ so.name +'</a>'
+                }
+            } else {
+                html += '<a href="?C='+ co.C +'&O='+ so.id +'">'+ so.name +'</a>';
+            }
+        });
+    });
+    $('.stations').html(html);
+};
+
+
+MetraRealTime.prototype.finalStation = function(C,O,D) {
+    var me = this;
+    var finalStationNum = -1; // -1 means not known yet
+    var stations;
+    C = C || me.stationRequest.Corridor;
+    O = O || me.stationRequest.Origin;
+    D = D || me.stationRequest.Destination;
+    console.log('finalStation('+ C +','+ O +','+ D +')');
+    $.each(me.stationsRaw, function(i,co){
+        if (co.C != C) return;
+        stations = co.stations;
+    });
+    // Note stationsRaw lists statsion in order towards downtown chicago
+    $.each(stations, function(i,so){
+        if ((so.id == O) && (-1 == finalStationNum)) {
+            // heading towards Chicago
+            finalStationNum = i;
+        } else if ((so.id == D) && (-1 == finalStationNum)) {
+            // heading away from Chicago
+            finalStationNum = 0;
+        }
+        if (finalStationNum > 0) {
+          // heading towards Chicago, last number i is last stop
+          finalStationNum = i;
         }
     });
+    $.each(stations, function(i,so){
+        if (finalStationNum == i) {
+          me.finalStationId = so.id;
+        }
+    });
+    console.log('finalStation('+ C +','+ O +','+ D +') heading '+ 
+      (finalStationNum == 0 ? 'away from' : 'towards') +' downtown Chicago: '+ me.finalStationId);
+    return me.finalStationId;
+};
 
-}
+
+MetraRealTime.prototype.initStations = function() {
+    var me = this;
+    // metrarail.com does not support CORS, so must use curl to get json data and paste here
+    // curl http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json?trackerNumber=0&trainLineId=MD-N
+    me.stationsRaw = [
+        { C:'UP-N', name:'Union Pacific / North Line',
+          "stations":{"0":{"id":"KENOSHA","name":"Kenosha"},"1":{"id":"WINTHROP","name":"Winthrop Harbor "},"2":{"id":"ZION","name":"Zion "},"3":{"id":"WAUKEGAN","name":"Waukegan"},"4":{"id":"NCHICAGO","name":"North Chicago"},"5":{"id":"GRTLAKES","name":"Great Lakes"},"6":{"id":"LAKEBLUFF","name":"Lake Bluff "},"7":{"id":"LKFOREST","name":"Lake Forest"},"8":{"id":"FTSHERIDAN","name":"Fort Sheridan"},"9":{"id":"HIGHWOOD","name":"Highwood"},"10":{"id":"HIGHLANDPK","name":"Highland Park "},"11":{"id":"RAVINIA","name":"Ravinia"},"12":{"id":"RAVINIAPK","name":"Ravinia Park"},"13":{"id":"BRAESIDE","name":"Braeside"},"14":{"id":"GLENCOE","name":"Glencoe"},"15":{"id":"HUBARDWOOD","name":"Hubbard Woods"},"16":{"id":"WINNETKA","name":"Winnetka"},"17":{"id":"INDIANHILL","name":"Indian Hill "},"18":{"id":"KENILWORTH","name":"Kenilworth"},"19":{"id":"WILMETTE","name":"Wilmette"},"20":{"id":"CENTRALST","name":"Evanston Central Street"},"21":{"id":"EVANSTON","name":"Evanston Davis Street "},"22":{"id":"MAINST","name":"Evanston Main Street"},"23":{"id":"ROGERPK","name":"Rogers Park"},"24":{"id":"RAVENSWOOD","name":"Ravenswood"},"25":{"id":"CLYBOURN","name":"Clybourn"},"26":{"id":"OTC","name":"Ogilvie Transportation Center"}}
+        },
+        { C:'MD-N', name:'Milwaukee District / North Line',
+          "stations":{"0":{"id":"FOXLAKE","name":"Fox Lake"},"1":{"id":"INGLESIDE","name":"Ingleside"},"2":{"id":"LONGLAKE","name":"Long Lake"},"3":{"id":"ROUNDLAKE","name":"Round Lake"},"4":{"id":"GRAYSLAKE","name":"Grayslake"},"5":{"id":"PRAIRIEXNG","name":"Prairie Crossing/Libertyville"},"6":{"id":"LIBERTYVIL","name":"Libertyville"},"7":{"id":"LAKEFRST","name":"Lake Forest"},"8":{"id":"DEERFIELD","name":"Deerfield"},"9":{"id":"LAKECOOKRD","name":"Lake Cook Road"},"10":{"id":"NBROOK","name":"Northbrook"},"11":{"id":"NGLENVIEW","name":"Glen of North Glenview"},"12":{"id":"GLENVIEW","name":"Glenview"},"13":{"id":"GOLF","name":"Golf"},"14":{"id":"MORTONGRV","name":"Morton Grove"},"15":{"id":"EDGEBROOK","name":"Edgebrook"},"16":{"id":"FORESTGLEN","name":"Forest Glen"},"17":{"id":"MAYFAIR","name":"Mayfair"},"18":{"id":"GRAYLAND","name":"Grayland"},"19":{"id":"HEALY","name":"Healy"},"20":{"id":"WESTERNAVE","name":"Western Avenue"},"21":{"id":"CUS","name":"Union Station"}}
+        },
+        { C:'NCS', name:'North Central Service',
+        "stations":{"0":{"id":"ANTIOCH","name":"Antioch"},"1":{"id":"LAKEVILLA","name":"Lake Villa "},"2":{"id":"ROUNDLKBCH","name":"Round Lake Beach"},"3":{"id":"GRAYSLK-WASH","name":"Washington St. / Grayslake"},"4":{"id":"PRAIRCROSS","name":"Prairie Crossing / Libertyville"},"5":{"id":"MUNDELEIN","name":"Mundelein"},"6":{"id":"VERNON","name":"Vernon Hills "},"7":{"id":"PRAIRIEVW","name":"Prairie View"},"8":{"id":"BUFFGROVE","name":"Buffalo Grove"},"9":{"id":"WHEELING","name":"Wheeling"},"10":{"id":"PROSPECTHG","name":"Prospect Heights"},"11":{"id":"OHARE","name":"O'Hare Transfer"},"12":{"id":"ROSEMONT","name":"Rosemont"},"13":{"id":"SCHILLERPK","name":"Schiller Park"},"14":{"id":"FRANKLINPK","name":"Belmont Ave / Franklin Park"},"15":{"id":"RIVERGROVE","name":"River Grove"},"16":{"id":"WESTERNAVE","name":"Western Avenue"},"17":{"id":"CUS","name":"Union Station"}}
+        },
+        { C:'UP-NW', name:'Union Pacific / Northwest Line',
+          "stations":{"0":{"id":"HARVARD","name":"Harvard "},"1":{"id":"MCHENRY","name":"McHenry "},"2":{"id":"WOODSTOCK","name":"Woodstock "},"3":{"id":"CRYSTAL","name":"Crystal Lake"},"4":{"id":"PINGREE","name":"Pingree Road"},"5":{"id":"CARY","name":"Cary "},"6":{"id":"FOXRG","name":"Fox River Grove "},"7":{"id":"BARRINGTON","name":"Barrington"},"8":{"id":"PALATINE","name":"Palatine"},"9":{"id":"ARLINGTNPK","name":"Arlington Park (Race Track)"},"10":{"id":"ARLINGTNHT","name":"Arlington Heights"},"11":{"id":"MTPROSPECT","name":"Mount Prospect"},"12":{"id":"CUMBERLAND","name":"Cumberland "},"13":{"id":"DESPLAINES","name":"Des Plaines"},"14":{"id":"DEEROAD","name":"Dee Road"},"15":{"id":"PARKRIDGE","name":"Park Ridge"},"16":{"id":"EDISONPK","name":"Edison Park"},"17":{"id":"NORWOODP","name":"Norwood Park"},"18":{"id":"GLADSTONEP","name":"Gladstone Park"},"19":{"id":"JEFFERSONP","name":"Jefferson Park"},"20":{"id":"IRVINGPK","name":"Irving Park"},"21":{"id":"CLYBOURN","name":"Clybourn"},"22":{"id":"OTC","name":"Ogilvie Transportation Center"}}
+        },
+        { C:'MD-W', name:'Milwaukee District / West Line',
+        "stations":{"0":{"id":"BIGTIMBER","name":"Big Timber Road"},"1":{"id":"ELGIN","name":"Elgin"},"2":{"id":"NATIONALS","name":"National Street"},"3":{"id":"BARTLETT","name":"Bartlett"},"4":{"id":"HANOVERP","name":"Hanover Park "},"5":{"id":"SCHAUM","name":"Schaumburg"},"6":{"id":"ROSELLE","name":"Roselle"},"7":{"id":"MEDINAH","name":"Medinah "},"8":{"id":"ITASCA","name":"Itasca"},"9":{"id":"WOODDALE","name":"Wood Dale "},"10":{"id":"BENSENVIL","name":"Bensenville"},"11":{"id":"MANNHEIM","name":"Mannheim"},"12":{"id":"FRANKLIN","name":"Franklin Park"},"13":{"id":"RIVERGROVE","name":"River Grove"},"14":{"id":"ELMWOODPK","name":"Elmwood Park"},"15":{"id":"MONTCLARE","name":"Mont Clare"},"16":{"id":"MARS","name":"Mars "},"17":{"id":"GALEWOOD","name":"Galewood "},"18":{"id":"HANSONPK","name":"Hanson Park"},"19":{"id":"GRAND-CIC","name":"Grand / Cicero"},"20":{"id":"WESTERNAVE","name":"Western Avenue"},"21":{"id":"CUS","name":"Union Station"}}
+        },
+        { C:'UP-W', name:'Union Pacific / West Line',
+        "stations":{"0":{"id":"ELBURN","name":"Elburn"},"1":{"id":"LAFOX","name":"La Fox"},"2":{"id":"GENEVA","name":"Geneva"},"3":{"id":"WCHICAGO","name":"West Chicago"},"4":{"id":"WINFIELD","name":"Winfield"},"5":{"id":"WHEATON","name":"Wheaton"},"6":{"id":"COLLEGEAVE","name":"College Avenue"},"7":{"id":"GLENELLYN","name":"Glen Ellyn"},"8":{"id":"LOMBARD","name":"Lombard"},"9":{"id":"VILLAPARK","name":"Villa Park"},"10":{"id":"ELMHURST","name":"Elmhurst"},"11":{"id":"BERKELEY","name":"Berkeley "},"12":{"id":"BELLWOOD","name":"Bellwood "},"13":{"id":"MELROSEPK","name":"Melrose Park"},"14":{"id":"MAYWOOD","name":"Maywood"},"15":{"id":"RIVRFOREST","name":"River Forest"},"16":{"id":"OAKPARK","name":"Oak Park "},"17":{"id":"KEDZIE","name":"Kedzie "},"18":{"id":"OTC","name":"Ogilvie Transportation Center"}}
+        },
+        { C:'BNSF', name:'BNSF Railway',
+          "stations":{"0":{"id":"AURORA","name":"Aurora"},"1":{"id":"ROUTE59","name":"Route 59"},"2":{"id":"NAPERVILLE","name":"Naperville"},"3":{"id":"LISLE","name":"Lisle "},"4":{"id":"BELMONT","name":"Belmont"},"5":{"id":"MAINST-DG","name":"Downers Grove Main Street"},"6":{"id":"FAIRVIEWDG","name":"Fairview Avenue"},"7":{"id":"WESTMONT","name":"Westmont"},"8":{"id":"CLARNDNHIL","name":"Clarendon Hills"},"9":{"id":"WHINSDALE","name":"West Hinsdale "},"10":{"id":"HINSDALE","name":"Hinsdale"},"11":{"id":"HIGHLANDS","name":"Highlands "},"12":{"id":"WESTSPRING","name":"Western Springs"},"13":{"id":"STONEAVE","name":"LaGrange Stone Avenue"},"14":{"id":"LAGRANGE","name":"LaGrange Road"},"15":{"id":"CONGRESSPK","name":"Congress Park "},"16":{"id":"BROOKFIELD","name":"Brookfield"},"17":{"id":"HOLLYWOOD","name":"Hollywood"},"18":{"id":"RIVERSIDE","name":"Riverside"},"19":{"id":"HARLEM","name":"Harlem Ave."},"20":{"id":"BERWYN","name":"Berwyn "},"21":{"id":"LAVERGNE","name":"LaVergne"},"22":{"id":"CICERO","name":"Cicero"},"23":{"id":"BNWESTERN","name":"Western Avenue"},"24":{"id":"HALSTED","name":"Halsted "},"25":{"id":"CUS","name":"Union Station"}}
+        },
+        { C:'HC', name:'Heritage Corridor',
+        "stations":{"0":{"id":"JOLIET","name":"Joliet"},"1":{"id":"LOCKPORT","name":"Lockport"},"2":{"id":"LEMONT","name":"Lemont"},"3":{"id":"WILLOWSPRN","name":"Willow Springs"},"4":{"id":"SUMMIT","name":"Summit"},"5":{"id":"CUS","name":"Union Station"}}
+        },
+        { C:'SWS', name:'SouthWest Service',
+        "stations":{"0":{"id":"MANHATTAN","name":"Manhattan "},"1":{"id":"LARAWAY","name":"New Lenox Laraway Road"},"2":{"id":"179TH-SWS","name":"Orland Park 179th Street"},"3":{"id":"153RD-SWS","name":"Orland Park 153rd Street"},"4":{"id":"143RD-SWS","name":"Orland Park 143rd Street"},"5":{"id":"PALOSPARK","name":"Palos Park "},"6":{"id":"PALOSHTS","name":"Palos Heights"},"7":{"id":"WORTH","name":"Worth"},"8":{"id":"CHICRIDGE","name":"Chicago Ridge"},"9":{"id":"OAKLAWN","name":"Oak Lawn"},"10":{"id":"ASHBURN","name":"Ashburn "},"11":{"id":"WRIGHTWOOD","name":"Wrightwood "},"12":{"id":"CUS","name":"Union Station"}}
+        },
+        { C:'RI', name:'Rock Island District',
+        "stations":{"0":{"id":"JOLIET","name":"Joliet"},"1":{"id":"NEWLENOX","name":"New Lenox "},"2":{"id":"MOKENA","name":"Mokena"},"3":{"id":"HICKORYCRK","name":"Hickory Creek"},"4":{"id":"TINLEY80TH","name":"Tinley Park - 80th Ave."},"5":{"id":"TINLEYPARK","name":"Tinley Park"},"6":{"id":"OAKFOREST","name":"Oak Forest"},"7":{"id":"MIDLOTHIAN","name":"Midlothian "},"8":{"id":"ROBBINS","name":"Robbins"},"9":{"id":"VERMONT","name":"Blue Island - Vermont St."},"10":{"id":"PRAIRIEST","name":"Prairie St."},"11":{"id":"123RD-BEV","name":"123rd St."},"12":{"id":"119TH-BEV","name":"119th Street"},"13":{"id":"115TH-BEV","name":"Morgan Park - 115th Street"},"14":{"id":"111TH-BEV","name":"Morgan Park - 111th Street"},"15":{"id":"107TH-BEV","name":"Beverly Hills - 107th Street"},"16":{"id":"103RD-BEV","name":"Beverly Hills - 103rd Street"},"17":{"id":"99TH-BEV","name":"Beverly Hills - 99th Street"},"18":{"id":"95TH-BEV","name":"Beverly Hills - 95th Street"},"19":{"id":"91ST-BEV","name":"Beverly Hills - 91st Street "},"20":{"id":"BRAINERD","name":"Brainerd "},"21":{"id":"WASHHGTS","name":"103rd St., Washington Hts "},"22":{"id":"LONGWOOD","name":"95th St. - Longwood"},"23":{"id":"GRESHAM","name":"Gresham "},"24":{"id":"35TH","name":"35th Street / 'Lou' Jones / Bronzeville"},"25":{"id":"LSS","name":"LaSalle Street Station"}}
+        },
+        { C:'ME', name:'Metra Electric District',
+        "stations":{"0":{"id":"BLUEISLAND","name":"Blue Island"},"1":{"id":"BURROAK","name":"Burr Oak"},"2":{"id":"ASHLAND","name":"Ashland"},"3":{"id":"RACINE","name":"Racine"},"4":{"id":"WPULLMAN","name":"West Pullman "},"5":{"id":"STEWARTRID","name":"Stewart Ridge "},"6":{"id":"STATEST","name":"State Street"},"7":{"id":"93RD-SC","name":" 93rd St. (South Chicago)"},"8":{"id":"87TH-SC","name":"87th St. (South Chicago)"},"9":{"id":"83RD-SC","name":"83rd St. (South Chicago)"},"10":{"id":"79TH-SC","name":"79th Street (Cheltenham)"},"11":{"id":"WINDSORPK","name":"Windsor Park "},"12":{"id":"SOUTHSHORE","name":"South Shore"},"13":{"id":"BRYNMAWR","name":"Bryn Mawr "},"14":{"id":"STONYISLND","name":"Stony Island "},"15":{"id":"UNIVERSITY","name":"University Park"},"16":{"id":"RICHTON","name":"Richton Park "},"17":{"id":"MATTESON","name":"Matteson"},"18":{"id":"211TH-UP","name":"211th Street (Lincoln Highway)"},"19":{"id":"OLYMPIA","name":"Olympia Fields"},"20":{"id":"FLOSSMOOR","name":"Flossmoor"},"21":{"id":"HOMEWOOD","name":"Homewood"},"22":{"id":"CALUMET","name":"Calumet"},"23":{"id":"HAZELCREST","name":"Hazel Crest"},"24":{"id":"HARVEY","name":"Harvey"},"25":{"id":"147TH-UP","name":"147th Street (Sibley Boulevard)"},"26":{"id":"IVANHOE","name":"Ivanhoe "},"27":{"id":"RIVERDALE","name":"Riverdale"},"28":{"id":"KENSINGTN","name":"Kensington / 115th Street"},"29":{"id":"111TH-UP","name":"111th Street (Pullman)"},"30":{"id":"107TH-UP","name":"107th Street"},"31":{"id":"103RD-UP","name":"103rd Street (Rosemoor)"},"32":{"id":"95TH-UP","name":"95th St., Chicago State Univ."},"33":{"id":"91ST-UP","name":"91st Street (Chesterfield)"},"34":{"id":"87TH-UP","name":"87th Street (Woodruff)"},"35":{"id":"83RD-UP","name":"83rd Street (Avalon Park)"},"36":{"id":"79TH-UP","name":"79th St., Chatham"},"37":{"id":"75TH-UP","name":"75th Street (Grand Crossing)"},"38":{"id":"63RD-UP","name":"63rd Street"},"39":{"id":"59TH-UP","name":"59th St., Univ. of Chicago"},"40":{"id":"55-56-57TH","name":"55th - 56th - 57th Street"},"41":{"id":"51ST-53RD","name":"51st / 53rd Street (Hyde Park)"},"42":{"id":"47TH-UP","name":"47th Street (Kenwood)  "},"43":{"id":"27TH-UP","name":"27th Street"},"44":{"id":"MCCORMICK","name":"McCormick Place"},"45":{"id":"18TH-UP","name":"18th Street"},"46":{"id":"MUSEUM","name":"Museum Campus / 11th Street"},"47":{"id":"VANBUREN","name":"Van Buren Street"},"48":{"id":"RANDOLPH","name":"Millennium Station"}}
+        }
+    ];
+    me.stationsHash = {}
+    $.each(me.stationsRaw, function(i,so){
+        me.stationsHash[so.C] = {};
+        $.each(so.stations, function(n,s){
+            me.stationsHash[so.C][s.id] = s.name;
+        });
+    });
+};
+
+
 function getParameterByName(name) {
     name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
     var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
         results = regex.exec(location.search);
     return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
 };
-//This will sort your array
-function SortObjByVal(a, b){
-  var aName = a.name.toLowerCase();
-  var bName = b.name.toLowerCase(); 
-  return ((aName < bName) ? -1 : ((aName > bName) ? 1 : 0));
-}
 
     </script>
 
