@@ -127,6 +127,10 @@ MetraRealTime.prototype.init = function() {
         Origin      : h[me.query.C] && h[me.query.C][me.query.O] ? me.query.O : '',
         Destination : h[me.query.C] && h[me.query.C][me.query.D] ? me.query.D : ''
     };
+    me.stationNames = {
+        Origin      : h[me.query.C] ? h[me.query.C][me.query.O] : '',
+        Destination : h[me.query.C] ? h[me.query.C][me.query.D] : ''
+    }
     console.log('MetraRealTime init complete.');
     return this;
 };
@@ -206,8 +210,8 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     var me = this;
     var html = '';
     html += '<table><thead><td>Train</td>';
-    html += '<td>'+ me.stationRequest.Origin      +'<br>Est (Sched)</td>'
-    html += '<td>'+ me.stationRequest.Destination +'<br>Est (Sched)</td>'
+    html += '<td>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
+    html += '<td>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
     html += '<td>To/From<br>Chicago</td></thead>';
     $.each(me.trainInfo.tObj, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
