@@ -134,9 +134,20 @@ MetraRealTime.prototype.init = function() {
 MetraRealTime.prototype.go = function() {
     var me = this;
     if (me.stationRequest.Origin && me.stationRequest.Destination) {
-        me.finalStation();
-        me.reqData(function(data) {
-            me.processResponse(data);
+        me.reqTrainData(me.stationRequest, function(data) {
+            var stationReq = {
+                Corridor    : me.stationRequest.Corridor,
+                Origin      : me.stationRequest.Destination,
+                Destination : me.finalStation(me.stationRequest)
+            }
+            if (stationReq.Origin == stationReq.Destination) {
+                // End station - skip getting times, since api won't have answers
+                me.processTrainTimes(data, {});
+                return;
+            }
+            me.reqTrainData(stationReq, function(data2) {
+                me.processTrainTimes(data, data2);
+            });
         });
     } else {
         me.showCookies();
@@ -153,8 +164,8 @@ MetraRealTime.prototype.showTrainInfo = function() {
     var html;
     html = '<table><thead><td>Station</td><td>Train</td><td>Est Dept</td><td>Sched Dept</td></thead>';
     $.each(['train1', 'train2', 'train3', 'train4'], function(indx,train) {
-        if (!me.respJson[train]) return;
-        var t = me.respJson[train];
+        if (!me.respJson1[train]) return;
+        var t = me.respJson1[train];
         var time = me.parseMetraDate(t.estimated_dpt_time);
         if (time == '') {
             console.log('showTrainInfo() skipping invalid train',t);
@@ -178,27 +189,83 @@ MetraRealTime.prototype.showTrainInfo = function() {
     me.updateStatus('Last Updated: '+ me.trainInfo.updated);
 };
 
+MetraRealTime.prototype.aggregateTrainInfo = function() {
+    var me = this;
+    me.trainInfo = {
+        updated: me.parseMetraDate(me.respJson1.responseTime, true),
+        valid: true,
+        tObj: {},
+        tList: []
+    }
+    $.each(['train1', 'train2', 'train3'], function(indx,train) {
+        if (!me._aggregateTrainInfo(me.respJson1[train])) {
+              me.trainInfo.valid = false;
+        }
+        me._aggregateTrainInfo(me.respJson2[train]);
+    });
+    return me.trainInfo.t;
+};
+
+MetraRealTime.prototype._aggregateTrainInfo = function(t) {
+    var me = this;
+    if (!t) {
+        console.log('_aggregateTrainInfo() no train');
+        return;
+    }
+    var tObj = me.trainInfo.tObj || {};
+    var sTime = me.parseMetraDate(t.scheduled_dpt_time);
+    var eTime = me.parseMetraDate(t.estimated_dpt_time);
+    if (!sTime) {
+        console.log('_aggregateTrainInfo() skipping invalid train',t);
+        return;
+    }
+    tObj[t.train_num] = tObj[t.train_num] || {};
+    tObj[t.train_num][t.dpt_station] = eTime +' ('+ (sTime==eTime ? 'same' : sTime) +')';
+    me.trainInfo.tList.push(t);
+    return me.trainInfo.tObj = tObj;
+};
+
+MetraRealTime.prototype.showTrainInfo2 = function() {
+    var me = this;
+    var html = '';
+    html += '<table><thead><td>Train</td>';
+    html += '<td>'+ me.stationRequest.Origin      +'<br>Est (Sched)</td>'
+    html += '<td>'+ me.stationRequest.Destination +'<br>Est (Sched)</td>'
+    html += '<td>To/From<br>Chicago</td></thead>';
+    $.each(me.trainInfo.tObj, function(train_num, trainObj) {
+          html += '<tr>';
+          html += '<td>'+ train_num +'</td>';
+          html += '<td>'+ (trainObj[me.stationRequest.Origin] || '-') +'</td>';
+          html += '<td>'+ (trainObj[me.stationRequest.Destination] || '-') +'</td>';
+          html += '<td>'+ me.directionChicago +'</td>';
+          html += '</tr>';
+    });
+    if (me.trainInfo.tList.length == 0) {
+        html += '<tr><td colspan=4>Invalid train data - Check query args</td></tr>';
+        me.trainInfo.valid = false;
+    }
+    html += '</table>'
+    $(me.selectorTrain).html(html);
+    me.updateStatus('Last Updated: '+ me.trainInfo.updated);
+};
+
 MetraRealTime.prototype.updateStatus = function(status, e) {
     $(this.selectorStatus).html(status);
     console.log(status, e);
 };
 
 
-MetraRealTime.prototype.processResponse = function(data) {
+MetraRealTime.prototype.processTrainTimes = function(data1, data2) {
     var me = this;
-    me.respData = data;
-    console.log('ajax success:', data);
     try {
-      me.respJson = JSON.parse(data.d);
+      me.respJson1 = JSON.parse(data1.d);
+      me.respJson2 = JSON.parse(data2.d);
     } catch (e) {
-      console.log("Trouble converting to JSON", data, e);
+      console.log("Trouble converting to JSON", data1, data2, e);
     }
     try {
-      me.trainInfo = {
-          updated: me.parseMetraDate(me.respJson.responseTime, true),
-          trains: []
-      }
-      me.showTrainInfo();
+      me.aggregateTrainInfo();
+      me.showTrainInfo2();
       me.updateCookies();
       console.log("parsed", me.trainInfo);
 
@@ -255,22 +322,22 @@ MetraRealTime.prototype.showCookies = function() {
     $.each(sortable, function(i, v){
         if (--remaining < 0) return;
         var t = new Date(v[1]);
-        $('.cookies').append('<a title="'+ t +'" href="'+ v[0] +'">'+ v[0] +'</a>');
+        $('.cookies').append('<a title="'+ t +'" href="'+ v[0] +'">'+ v[0].substring(1) +'</a>');
     });
     console.log("showCookies: ", me.cookieJson);
 };
 
 
-MetraRealTime.prototype.reqData = function(cb) {
+MetraRealTime.prototype.reqTrainData = function(stationReq, cb) {
     var me = this;
     // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
-    me.stationRequest.timestamp = "/Date(" + new Date().getTime() + "-0000)/";
+    stationReq.timestamp = "/Date(" + new Date().getTime() + "-0000)/";
     try {
-        me.reqJson = JSON.stringify({ stationRequest: me.stationRequest });
+        me.reqJson = JSON.stringify({ stationRequest: stationReq });
     } catch (e) {
         me.updateStatus('Trouble with JSON.stringify', e);
     }
-    console.log('MetraRealTime.reqData ...');
+    console.log('MetraRealTime.reqTrainData ...');
     $.ajax({
         url: me.reqUrl,
         type: me.reqType,
@@ -329,25 +396,21 @@ MetraRealTime.prototype.showStations = function(C,O) {
 };
 
 
-MetraRealTime.prototype.finalStation = function(C,O,D) {
+MetraRealTime.prototype.finalStation = function(stationReq) {
     var me = this;
     var finalStationNum = -1; // -1 means not known yet
     var stations;
-    C = C || me.stationRequest.Corridor;
-    O = O || me.stationRequest.Origin;
-    D = D || me.stationRequest.Destination;
-    console.log('finalStation('+ C +','+ O +','+ D +')');
     $.each(me.stationsRaw, function(i,co){
-        if (co.C != C) return;
+        if (co.C != stationReq.Corridor) return;
         stations = co.stations;
     });
     // Note stationsRaw lists statsion in order towards downtown chicago
     $.each(stations, function(i,so){
-        if ((so.id == O) && (-1 == finalStationNum)) {
-            // heading towards Chicago
+        if ((so.id == stationReq.Origin) && (-1 == finalStationNum)) {
+            me.directionChicago = "TO";
             finalStationNum = i;
-        } else if ((so.id == D) && (-1 == finalStationNum)) {
-            // heading away from Chicago
+        } else if ((so.id == stationReq.Destination) && (-1 == finalStationNum)) {
+            me.directionChicago = "FROM";  // heading away from chicago
             finalStationNum = 0;
         }
         if (finalStationNum > 0) {
@@ -360,8 +423,7 @@ MetraRealTime.prototype.finalStation = function(C,O,D) {
           me.finalStationId = so.id;
         }
     });
-    console.log('finalStation('+ C +','+ O +','+ D +') heading '+ 
-      (finalStationNum == 0 ? 'away from' : 'towards') +' downtown Chicago: '+ me.finalStationId);
+    console.log('finalStation '+ stationReq +' heading '+ me.directionChicago +' downtown Chicago: '+ me.finalStationId);
     return me.finalStationId;
 };
 
