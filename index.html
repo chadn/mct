@@ -113,7 +113,7 @@ MetraRealTime.prototype.init = function() {
     // defaults
     me.selectorTrain = '.traindata';
     me.selectorStatus = '.status';
-    me.refreshSecs = 30;
+    me.refreshSecs = parseInt(getParameterByName('R'),10) || 30;
     me.refreshEnabled = true;
     me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
     me.reqType = 'POST';
