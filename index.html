@@ -27,6 +27,9 @@
       float:left;
       padding-left:10px;
     }
+    .refresh {
+      font-size: 0.8em;
+    }
     td {
       background-color: #EEE;
       padding: 5px;
@@ -110,6 +113,8 @@ MetraRealTime.prototype.init = function() {
     // defaults
     me.selectorTrain = '.traindata';
     me.selectorStatus = '.status';
+    me.refreshSecs = 30;
+    me.refreshEnabled = true;
     me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
     me.reqType = 'POST';
     me.cookieName = 'metra';
@@ -131,6 +136,21 @@ MetraRealTime.prototype.init = function() {
         Origin      : h[me.query.C] ? h[me.query.C][me.query.O] : '',
         Destination : h[me.query.C] ? h[me.query.C][me.query.D] : ''
     }
+    setInterval( function(){
+        if (me.refreshEnabled) {
+            me.go();
+        }
+    }, me.refreshSecs * 1000);
+    $('.status').on('click', '.refresh-on', function(e){
+        e.preventDefault();
+        me.refreshEnabled = true;
+        me.refreshHtml();
+    });
+    $('.status').on('click', '.refresh-off', function(e){
+        e.preventDefault();
+        me.refreshEnabled = false;
+        me.refreshHtml();
+    });
     console.log('MetraRealTime init complete.');
     return this;
 };
@@ -154,6 +174,11 @@ MetraRealTime.prototype.go = function() {
         }
         me.reqTrainData(stationReq, function(data2) {
             me.processTrainTimes(data2);
+        });
+        // Hoping that the following would show train times in future, but looks like no
+        stationReq.timestamp = "/Date(" + (new Date().getTime() + 1000*60*60) + "-0000)/";
+        me.reqTrainData(stationReq, function(data3) {
+            //me.processTrainTimes(data3);
         });
 
     } else {
@@ -230,12 +255,24 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     }
     html += '</table>'
     $(me.selectorTrain).html(html);
-    me.updateStatus('Last Updated: '+ me.trainInfo.updated);
+    me.updateStatus('Last Updated: '+ me.trainInfo.updated +'<br>'+ me.refreshHtml());
 };
 
 MetraRealTime.prototype.updateStatus = function(status, e) {
     $(this.selectorStatus).html(status);
     console.log(status, e);
+};
+
+MetraRealTime.prototype.refreshHtml = function() {
+    var me = this;
+    var html;
+    if (me.refreshEnabled) {
+        html = 'Auto Refresh every '+ me.refreshSecs +' secs. <a class="refresh-off" href="">Disable</a>';
+    } else {
+        html = '<a class="refresh-on" href="">Enable Auto Refresh</a>';
+    }
+    $('.refresh').html(html);
+    return '<span class="refresh">' + html +'</span>';
 };
 
 MetraRealTime.prototype.processTrainTimes = function(data) {
