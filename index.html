@@ -175,11 +175,14 @@ MetraRealTime.prototype.go = function() {
         me.reqTrainData(stationReq, function(data2) {
             me.processTrainTimes(data2);
         });
+
         // Hoping that the following would show train times in future, but looks like no
+        /*
         stationReq.timestamp = "/Date(" + (new Date().getTime() + 1000*60*60) + "-0000)/";
         me.reqTrainData(stationReq, function(data3) {
-            //me.processTrainTimes(data3);
+            me.processTrainTimes(data3);
         });
+        */ 
 
     } else {
         me.showCookies();
