@@ -250,7 +250,7 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     html += '<table><thead><td>Train</td>';
     html += '<td>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
     html += '<td>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
-    html += '<td>To/From<br>Chicago</td></thead>';
+    html += '<td>Inbound<br>Outbound</td></thead>';
     $.each(me.trainInfo.tObj, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
           return; // skip trains that don't stop at Origin
@@ -433,10 +433,10 @@ MetraRealTime.prototype.finalStation = function(stationReq) {
     // Note stationsRaw lists statsion in order towards downtown chicago
     $.each(stations, function(i,so){
         if ((so.id == stationReq.Origin) && (-1 == finalStationNum)) {
-            me.directionChicago = "TO";
+            me.directionChicago = "Inbound";
             finalStationNum = i;
         } else if ((so.id == stationReq.Destination) && (-1 == finalStationNum)) {
-            me.directionChicago = "FROM";  // heading away from chicago
+            me.directionChicago = "Outbound";  // heading away from chicago
             finalStationNum = 0;
         }
         if (finalStationNum > 0) {
@@ -449,7 +449,7 @@ MetraRealTime.prototype.finalStation = function(stationReq) {
           me.finalStationId = so.id;
         }
     });
-    console.log('finalStation '+ stationReq +' heading '+ me.directionChicago +' downtown Chicago: '+ me.finalStationId);
+    console.log('finalStation '+ stationReq +' heading '+ me.directionChicago +' Chicago: '+ me.finalStationId);
     return me.finalStationId;
 };
 
