@@ -136,15 +136,11 @@ MetraRealTime.prototype.init = function() {
         Origin      : h[me.query.C] ? h[me.query.C][me.query.O] : '',
         Destination : h[me.query.C] ? h[me.query.C][me.query.D] : ''
     }
-    setInterval( function(){
-        if (me.refreshEnabled) {
-            me.go();
-        }
-    }, me.refreshSecs * 1000);
     $('.status').on('click', '.refresh-on', function(e){
         e.preventDefault();
         me.refreshEnabled = true;
         me.refreshHtml();
+        me.go();
     });
     $('.status').on('click', '.refresh-off', function(e){
         e.preventDefault();
@@ -174,6 +170,7 @@ MetraRealTime.prototype.go = function() {
         }
         me.reqTrainData(stationReq, function(data2) {
             me.processTrainTimes(data2);
+            me.goAgain();
         });
 
         // Hoping that the following would show train times in future, but looks like no
@@ -192,6 +189,19 @@ MetraRealTime.prototype.go = function() {
     }
     console.log('MetraRealTime go complete. window.mrt = ', me);
     return this;
+};
+
+MetraRealTime.prototype.goAgain = function() {
+    var me = this;
+    if (me.refreshTimer) return; // already got a timer 
+    if (!me.refreshEnabled) return;
+
+    me.refreshTimer = setTimeout( function(){
+        me.refreshTimer = null;
+        if (me.refreshEnabled) {
+            me.go();
+        }
+    }, me.refreshSecs * 1000);
 };
 
 MetraRealTime.prototype.aggregateTrainInfo = function(data) {
