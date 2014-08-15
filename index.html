@@ -27,6 +27,9 @@
       float:left;
       padding-left:10px;
     }
+    .nextTrain {
+      font-weight: bold;
+    }
     .refresh {
       font-size: 0.8em;
     }
@@ -95,7 +98,6 @@
         r.parentNode.insertBefore(e,r)}(window,document,'script','ga'));
         ga('create','UA-2767105-1');ga('send','pageview');
     </script>
-
     <script>
 $(document).ready(function(){
   window.mrt = MetraRealTime().go();
@@ -217,9 +219,17 @@ MetraRealTime.prototype.aggregateTrainInfo = function(data) {
     } catch (e) {
       console.log("Trouble converting to JSON", data, e);
     }
+    if (json.train1.dpt_station == me.stationRequest.Origin) {
+        delete me.nextTrainEpoch;
+    }
     $.each(['train1', 'train2', 'train3'], function(indx,train) {
-        if (!me._aggregateTrainInfo(json[train])) {
+        var t = json[train];
+        if (!me._aggregateTrainInfo(t)) {
               me.trainInfo.valid = false;
+        }
+        if (t.dpt_station == me.stationRequest.Origin) {
+            console.log('aggregateTrainInfo() possible nextTrain '+ me.parseMetraDate(t.estimated_dpt_time));
+            me.updateNextTrainEpoch(t.estimated_dpt_time);
         }
     });
     me.trainInfo.updated = me.parseMetraDate(json.responseTime, true);
@@ -268,7 +278,9 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     }
     html += '</table>'
     $(me.selectorTrain).html(html);
-    me.updateStatus('Last Updated: '+ me.trainInfo.updated +'<br>'+ me.refreshHtml());
+    me.updateStatus('<span class="nextTrain"></span> till Next Train<br>'
+        +'Last Updated: '+ me.trainInfo.updated +'<br>'+ me.refreshHtml());
+    me.updateNextTrain();
 };
 
 MetraRealTime.prototype.updateStatus = function(status, e) {
@@ -296,6 +308,41 @@ MetraRealTime.prototype.processTrainTimes = function(data) {
         me.updateCookies();
     } catch (e) {
         console.log("processTrainTimes: Trouble parsing response", data, e);
+    }
+};
+
+MetraRealTime.prototype.updateNextTrain = function() {
+    var me = this;
+    var diff;
+    var html = '??';
+    if (me.nextTrainEpoch) {
+        diff = me.nextTrainEpoch - new Date().getTime(); // difference in ms
+        diff = Math.round(diff / (60*1000)); // mins
+        if (diff > 1) {
+            html = diff + ' mins';
+        } else if (diff == 1) {
+            html = '1 min';
+        } else {
+            html = '< 1 min';
+        }
+    }
+    $('.nextTrain').html(html);
+};
+
+MetraRealTime.prototype.updateNextTrainEpoch = function(dateStr) {
+    var me = this;
+    var now = new Date().getTime();
+    try {
+        var ms = dateStr.match(/Date\((\d+)\)/)[1];
+        ms = parseInt(ms,10);
+    } catch (e) {
+        return;
+    }
+    if (!me.nextTrainEpoch 
+        || (ms < me.nextTrainEpoch) 
+        || (now > me.nextTrainEpoch) ) {
+        me.nextTrainEpoch = ms;
+        console.log(' === updateNextTrainEpoch set '+ new Date(me.nextTrainEpoch));
     }
 };
 
