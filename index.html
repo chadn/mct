@@ -6,8 +6,8 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Metra Real Time</title>
-    <meta name="description" content="">
+    <title>Metra Until Next Train - MUNT</title>
+    <meta name="description" content="Metra Until Next Train (MUNT) is a quick and easy way to see how many minutes before your next metra train arrives, using Real-Time info from Metra API">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
@@ -22,16 +22,30 @@
       width:118px;
       height:51px;
     }
+    .loading,
     .status {
-      display:block;
+      display:none;
       float:left;
       padding-left:10px;
     }
+    .loading {display:block;}
     .nextTrain {
+      line-height: 24px;
       font-weight: bold;
+      background-color: #0B57A2;
+      color: #FFF;
+      padding:3px 6px;
+      border-radius: 5px; 
+      -moz-border-radius: 5px; //Firefox
+      -webkit-border-radius: 5px; // Chrome/Safari 
     }
-    .refresh {
+    .refresh-on,
+    .enable-refresh {
       font-size: 0.8em;
+      line-height: 18px;
+    }
+    .refresh-loading {
+        font-style: italic; 
     }
     td {
       background-color: #EEE;
@@ -66,10 +80,19 @@
         <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
     <div class='row cf'>
-      <a href="/metra/" class='logo'>
-        <img src="http://metrarail.com/content/dam/metra/images/logos/logo.png" alt="back to home">
-      </a>
-      <p class='status'>Loading Train data ...</p>
+        <a href="/metra/" class='logo'>
+            <img src="http://metrarail.com/content/dam/metra/images/logos/logo.png" alt="back to home">
+        </a>
+        <p class='loading'>Loading Train data ...</p>
+        <p class='status'>
+            <span class="nextTrain">?</span> till Next Train<br>
+            Last Updated: <span class='lastUpdated'></span><br>
+            <a class="enable-refresh" href="">Enable Auto Refresh</a>
+            <span class="refresh-on">Auto Refresh 
+                <span class='refresh-freq'>every XX secs.</span>
+                <a class="disable-refresh" href="">Disable</a>
+            </span>
+        </p>
     </div>
     <!-- Add your site or application content here -->
     <div class="row cf traindata">
@@ -86,6 +109,7 @@
     <div class='row stations'>
     </div>
     <!--
+    http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route=Metra%20Milwaukee%20District%20North%20Line&metraRoute=Milwaukee%20District%20North&origStop=Lake%20Cook%20Rd&destStop=Healy
     <script src="jquery.min.js"></script>
 -->
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
@@ -116,7 +140,6 @@ MetraRealTime.prototype.init = function() {
     me.selectorTrain = '.traindata';
     me.selectorStatus = '.status';
     me.refreshSecs = parseInt(getParameterByName('R'),10) || 30;
-    me.refreshEnabled = true;
     me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
     me.reqType = 'POST';
     me.cookieName = 'metra';
@@ -126,6 +149,7 @@ MetraRealTime.prototype.init = function() {
         O : getParameterByName('O'),
         D : getParameterByName('D')
     };
+
     me.initStations();
     var h = me.stationsHash;
     // stationRequest contains only valid Corridor, Origin, and Dest from query args  
@@ -138,17 +162,18 @@ MetraRealTime.prototype.init = function() {
         Origin      : h[me.query.C] ? h[me.query.C][me.query.O] : '',
         Destination : h[me.query.C] ? h[me.query.C][me.query.D] : ''
     }
-    $('.status').on('click', '.refresh-on', function(e){
+    $('.refresh-freq').html('every '+ me.refreshSecs +' secs.')
+    $('.status').on('click', '.enable-refresh', function(e){
         e.preventDefault();
-        me.refreshEnabled = true;
-        me.refreshHtml();
+        me.autoRefresh(true);
         me.go();
     });
-    $('.status').on('click', '.refresh-off', function(e){
+    $('.status').on('click', '.disable-refresh', function(e){
         e.preventDefault();
-        me.refreshEnabled = false;
-        me.refreshHtml();
+        me.autoRefresh(false);
     });
+    me.autoRefresh(true);
+
     console.log('MetraRealTime init complete.');
     return this;
 };
@@ -156,11 +181,17 @@ MetraRealTime.prototype.init = function() {
 MetraRealTime.prototype.go = function() {
     var me = this;
     if (me.stationRequest.Origin && me.stationRequest.Destination) {
+
         // find time train departs Origin
+        $('.loading').hide();
+        $('.status').show();
+        $('.refresh-freq').addClass('refresh-loading');
         me.reqTrainData(me.stationRequest, function(data) {
             me.processTrainTimes(data);
+            $('.refresh-freq').removeClass('refresh-loading');
         });
-        // find time train arrives (departs Destination)
+
+        // find time train arrives (departs Destination) (less important)
         var stationReq = {
             Corridor    : me.stationRequest.Corridor,
             Origin      : me.stationRequest.Destination,
@@ -278,26 +309,27 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     }
     html += '</table>'
     $(me.selectorTrain).html(html);
-    me.updateStatus('<span class="nextTrain"></span> till Next Train<br>'
-        +'Last Updated: '+ me.trainInfo.updated +'<br>'+ me.refreshHtml());
     me.updateNextTrain();
 };
 
 MetraRealTime.prototype.updateStatus = function(status, e) {
-    $(this.selectorStatus).html(status);
+    $(this.selectorStatus).show().html(status);
     console.log(status, e);
 };
 
-MetraRealTime.prototype.refreshHtml = function() {
+MetraRealTime.prototype.autoRefresh = function(enableRefresh) {
     var me = this;
     var html;
-    if (me.refreshEnabled) {
-        html = 'Auto Refresh every '+ me.refreshSecs +' secs. <a class="refresh-off" href="">Disable</a>';
-    } else {
-        html = '<a class="refresh-on" href="">Enable Auto Refresh</a>';
+    if (typeof enableRefresh === 'boolean') {
+        me.refreshEnabled = enableRefresh;
+        if (enableRefresh === true) {
+            $('.refresh-on').show();
+            $('.enable-refresh').hide();
+        } else {
+            $('.refresh-on').hide();
+            $('.enable-refresh').show();
+        }
     }
-    $('.refresh').html(html);
-    return '<span class="refresh">' + html +'</span>';
 };
 
 MetraRealTime.prototype.processTrainTimes = function(data) {
@@ -327,6 +359,7 @@ MetraRealTime.prototype.updateNextTrain = function() {
         }
     }
     $('.nextTrain').html(html);
+    $('.lastUpdated').html(me.trainInfo.updated);
 };
 
 MetraRealTime.prototype.updateNextTrainEpoch = function(dateStr) {
