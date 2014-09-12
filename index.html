@@ -16,6 +16,12 @@
         font-family: Verdana, Helvetica, sans-serif;
     }
     p {margin:0;}
+    .feedback {
+        display:none;
+    }
+    .feedback li {
+        padding-bottom: 15px;
+    }
     .logo {
       display:block;
       float:left;
@@ -29,6 +35,7 @@
       padding-left:10px;
     }
     .loading {display:block;}
+    .fback,
     .nextTrain {
       line-height: 24px;
       font-weight: bold;
@@ -38,6 +45,9 @@
       border-radius: 5px; 
       -moz-border-radius: 5px; //Firefox
       -webkit-border-radius: 5px; // Chrome/Safari 
+    }
+    .fback-selected {
+        background-color: #06A25E;
     }
     .refresh-on,
     .enable-refresh {
@@ -79,6 +89,16 @@
     <!--[if lt IE 7]>
         <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
+    <div class='row cf feedback'>
+        <p>Submit Feedback: Train arrived ...
+            <ul>
+            <li><span class='fback' ga='est-before'>Before estimate</span></li>
+            <li><span class='fback' ga='est-after'>After estimate</span></li>
+            <li><span class='fback' ga='est-same'>Same as estimate</span></li>
+            <li><span class='fback' ga='est-varied'>... Estimate Varied</span></li>
+            <ul>
+        <p>
+    </div>
     <div class='row cf'>
         <a href="/metra/" class='logo'>
             <img src="http://metrarail.com/content/dam/metra/images/logos/logo.png" alt="back to home">
@@ -162,6 +182,13 @@ MetraRealTime.prototype.init = function() {
         Origin      : h[me.query.C] ? h[me.query.C][me.query.O] : '',
         Destination : h[me.query.C] ? h[me.query.C][me.query.D] : ''
     }
+
+    $('.status').on('click', '.nextTrain', function(e){
+        e.preventDefault();
+        $('.feedback').slideToggle();
+    });
+    $('.fback').on('click', me.feedback);
+
     $('.refresh-freq').html('every '+ me.refreshSecs +' secs.')
     $('.status').on('click', '.enable-refresh', function(e){
         e.preventDefault();
@@ -173,6 +200,8 @@ MetraRealTime.prototype.init = function() {
         me.autoRefresh(false);
     });
     me.autoRefresh(true);
+
+    ga('send', 'event', 'munt', 'init');
 
     console.log('MetraRealTime init complete.');
     return this;
@@ -186,7 +215,10 @@ MetraRealTime.prototype.go = function() {
         $('.loading').hide();
         $('.status').show();
         $('.refresh-freq').addClass('refresh-loading');
+        ga('send', 'event', 'munt', 'reqTrainData', me._stationReqStr() );
+
         me.reqTrainData(me.stationRequest, function(data) {
+            ga('send', 'event', 'munt', 'respTrainData', me._stationReqStr() );
             me.processTrainTimes(data);
             $('.refresh-freq').removeClass('refresh-loading');
         });
@@ -283,6 +315,12 @@ MetraRealTime.prototype._aggregateTrainInfo = function(t) {
     tObj[t.train_num][t.dpt_station] = eTime +' ('+ (sTime==eTime ? 'same' : sTime) +')';
     me.trainInfo.tList.push(t);
     return me.trainInfo.tObj = tObj;
+};
+
+// used for google analytics
+MetraRealTime.prototype._stationReqStr = function() {
+    var sr = this.stationRequest;
+    return sr.Corridor +'-'+ sr.Origin +'-'+ sr.Destination;
 };
 
 MetraRealTime.prototype.showTrainInfo2 = function() {
@@ -398,6 +436,16 @@ MetraRealTime.prototype.parseMetraDate = function(dateStr, inclSecs) {
 };
 
 
+MetraRealTime.prototype.feedback = function(evt) {
+    $(evt.target).addClass('fback-selected');
+    ga('send', 'event', 'munt', 'fback-'+$(evt.target).attr('ga'));
+    setTimeout(function(){
+        $(evt.target).removeClass('fback-selected');
+        $('.feedback').slideToggle();
+    },1500)
+};
+
+
 MetraRealTime.prototype.updateCookies = function() {
     var me = this;
     if (!(me.trainInfo.valid && $.cookie)) return;
@@ -443,6 +491,7 @@ MetraRealTime.prototype.reqTrainData = function(stationReq, cb) {
         me.updateStatus('Trouble with JSON.stringify', e);
     }
     console.log('MetraRealTime.reqTrainData ...');
+
     $.ajax({
         url: me.reqUrl,
         type: me.reqType,
