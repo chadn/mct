@@ -128,6 +128,7 @@
     </div>
     <div class='row stations'>
     </div>
+    <p> &nbsp; </p>
     <!--
     http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route=Metra%20Milwaukee%20District%20North%20Line&metraRoute=Milwaukee%20District%20North&origStop=Lake%20Cook%20Rd&destStop=Healy
     <script src="jquery.min.js"></script>
@@ -491,7 +492,11 @@ MetraRealTime.prototype.showCookies = function() {
     $.each(sortable, function(i, v){
         if (--remaining < 0) return;
         var t = new Date(v[1]);
-        $('.cookies').append('<a title="'+ t +'" href="'+ v[0] +'">'+ v[0].substring(1) +'</a>');
+        var str = getParameterByName('C',v[0]) + ' '
+            + getParameterByName('O',v[0]) + ' to '
+            + getParameterByName('D',v[0])
+            + (getParameterByName('R',v[0]) ? ', R=' + getParameterByName('R',v[0]) : '');
+        $('.cookies').append('<a title="'+ t +'" href="'+ v[0] +'">'+ str +'</a>');
     });
     //console.log("showCookies: ", me.cookieJson);
 };
@@ -659,10 +664,11 @@ MetraRealTime.prototype.initStations = function() {
 };
 
 
-function getParameterByName(name) {
+function getParameterByName(name, str) {
     name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
     var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
-        results = regex.exec(location.search);
+        str = str || location.search,
+        results = regex.exec(str);
     return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
 };
 
