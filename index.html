@@ -201,6 +201,12 @@ MetraRealTime.prototype.init = function() {
     });
     me.autoRefresh(true);
 
+    // may need to use HTML5 visibility API 
+    // https://greensock.com/forums/topic/9059-cross-browser-to-detect-tab-or-window-is-active-so-animations-stay-in-sync-using-html5-visibility-api/
+    $(window).on('focus', function(e){
+        $('.enable-refresh').click();
+    })
+
     ga('send', 'event', 'munt', 'init');
 
     console.log('MetraRealTime init complete.');
@@ -218,8 +224,11 @@ MetraRealTime.prototype.go = function() {
         ga('send', 'event', 'munt', 'reqTrainData', me._stationReqStr() );
 
         me.reqTrainData(me.stationRequest, function(data) {
-            ga('send', 'event', 'munt', 'respTrainData', me._stationReqStr() );
-            me.processTrainTimes(data);
+            if (me.processTrainTimes(data)) {
+                ga('send', 'event', 'munt', 'respTrainDataOK', me._stationReqStr() );
+            } else {
+                ga('send', 'event', 'munt', 'respTrainDataBad', me._stationReqStr() );
+            }
             $('.refresh-freq').removeClass('refresh-loading');
         });
 
@@ -370,14 +379,21 @@ MetraRealTime.prototype.autoRefresh = function(enableRefresh) {
     }
 };
 
+// returns true if processed ok, false if not
 MetraRealTime.prototype.processTrainTimes = function(data) {
     var me = this;
+    if (!data) {
+        console.log("processTrainTimes: no data");
+        return false;
+    }
     try {
         me.aggregateTrainInfo(data);
         me.showTrainInfo2();
         me.updateCookies();
+        return true;
     } catch (e) {
         console.log("processTrainTimes: Trouble parsing response", data, e);
+        return false;
     }
 };
 
@@ -481,6 +497,12 @@ MetraRealTime.prototype.showCookies = function() {
 };
 
 
+/**
+ * Makes api call to get train data.
+ *
+ * @param {object} [stationReq]
+ * @param {function(object)} [cb] callback function, passed null on error, or object on success
+ */
 MetraRealTime.prototype.reqTrainData = function(stationReq, cb) {
     var me = this;
     // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
@@ -492,12 +514,17 @@ MetraRealTime.prototype.reqTrainData = function(stationReq, cb) {
     }
     console.log('MetraRealTime.reqTrainData ...');
 
-    $.ajax({
+    var jqxhr = $.ajax({
         url: me.reqUrl,
         type: me.reqType,
         contentType: 'application/json; charset=UTF-8',
         dataType: 'json',
         data: me.reqJson,
+        timeout: 1000 * (me.refreshSecs > 2 ? me.refreshSecs - 2 : 1),
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.log('ajax error:', textStatus, jqXHR, errorThrown);
+            cb(null);
+        },
         success: cb
     });
     return me;
