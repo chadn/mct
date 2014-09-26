@@ -455,7 +455,7 @@ MetraRealTime.prototype.parseMetraDate = function(dateStr, inclSecs) {
 
 MetraRealTime.prototype.feedback = function(evt) {
     $(evt.target).addClass('fback-selected');
-    ga('send', 'event', 'munt', 'fback-'+$(evt.target).attr('ga'));
+    ga('send', 'event', 'munt', 'fback-'+$(evt.target).attr('ga'), 1);
     setTimeout(function(){
         $(evt.target).removeClass('fback-selected');
         $('.feedback').slideToggle();
