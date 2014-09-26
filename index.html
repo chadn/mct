@@ -34,7 +34,10 @@
       float:left;
       padding-left:10px;
     }
-    .loading {display:block;}
+    .loading {
+        display:block;
+    }
+    .bluebox,
     .fback,
     .nextTrain {
       line-height: 24px;
@@ -165,6 +168,7 @@ MetraRealTime.prototype.init = function() {
     me.reqType = 'POST';
     me.cookieName = 'metra';
     me.recentCount = 6;
+    me.nextTrainEpoch = null;
     me.query = {
         C : getParameterByName('C'),
         O : getParameterByName('O'),
@@ -281,56 +285,68 @@ MetraRealTime.prototype.goAgain = function() {
 
 MetraRealTime.prototype.aggregateTrainInfo = function(data) {
     var me = this;
+    var nextTrainNum;
     var json;
-    me.trainInfo = me.trainInfo || {
-        valid: true,
-        tObj: {},
-        tList: []
-    }
     try {
       json = JSON.parse(data.d);
     } catch (e) {
       console.log("Trouble converting to JSON", data, e);
     }
+    me.trainInfo = me.trainInfo || {
+        valid: true,
+        apiJsonResponse: json, 
+        parsedData: {},
+        apiTrainData: []
+    }
     if (json.train1.dpt_station == me.stationRequest.Origin) {
         delete me.nextTrainEpoch;
     }
+    // first iterate through api json data to figure out nextTrainEpoch
     $.each(['train1', 'train2', 'train3'], function(indx,train) {
         var t = json[train];
-        if (!me._aggregateTrainInfo(t)) {
-              me.trainInfo.valid = false;
-        }
         if (t.dpt_station == me.stationRequest.Origin) {
             console.log('aggregateTrainInfo() possible nextTrain '+ me.parseMetraDate(t.estimated_dpt_time));
-            me.updateNextTrainEpoch(t.estimated_dpt_time);
+            if (me.updateNextTrainEpoch(t.estimated_dpt_time)) {
+                nextTrainNum = train;
+            }
         }
+    });
+    // second iterate to build parsedData
+    $.each(['train1', 'train2', 'train3'], function(indx,train) {
+        var t = json[train];
+        if (!me._aggregateTrainInfo(t, train==nextTrainNum)) {
+              me.trainInfo.valid = false;
+              return;
+        }
+        me.trainInfo.apiTrainData.push(t);
     });
     me.trainInfo.updated = me.parseMetraDate(json.responseTime, true);
 };
 
-MetraRealTime.prototype._aggregateTrainInfo = function(t) {
+/* 
+ *  @param t
+ *  @param isNextTrain - if true, then this train is the Next Train
+ */
+MetraRealTime.prototype._aggregateTrainInfo = function(t, isNextTrain) {
     var me = this;
     if (!t) {
         console.log('_aggregateTrainInfo() no train');
         return;
     }
-    var tObj = me.trainInfo.tObj || {};
+    var parsedData = me.trainInfo.parsedData || {};
     var sTime = me.parseMetraDate(t.scheduled_dpt_time);
     var eTime = me.parseMetraDate(t.estimated_dpt_time);
     if (!sTime) {
         console.log('_aggregateTrainInfo() skipping invalid train',t);
-        return;
+        return false;
     }
-    tObj[t.train_num] = tObj[t.train_num] || {};
-    tObj[t.train_num][t.dpt_station] = eTime +' ('+ (sTime==eTime ? 'same' : sTime) +')';
-    me.trainInfo.tList.push(t);
-    return me.trainInfo.tObj = tObj;
-};
-
-// used for google analytics
-MetraRealTime.prototype._stationReqStr = function() {
-    var sr = this.stationRequest;
-    return sr.Corridor +'-'+ sr.Origin +'-'+ sr.Destination;
+    if (isNextTrain) {
+        eTime = '<span class="bluebox">' + eTime + '</span>';
+    }
+    parsedData[t.train_num] = parsedData[t.train_num] || {};
+    parsedData[t.train_num][t.dpt_station] = eTime +' ('+ (sTime==eTime ? 'same' : sTime) +')';
+    me.trainInfo.parsedData = parsedData;
+    return true;
 };
 
 MetraRealTime.prototype.showTrainInfo2 = function() {
@@ -340,7 +356,7 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
     html += '<td>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
     html += '<td>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
     html += '<td>Inbound<br>Outbound</td></thead>';
-    $.each(me.trainInfo.tObj, function(train_num, trainObj) {
+    $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
           return; // skip trains that don't stop at Origin
         }
@@ -351,7 +367,7 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
         html += '<td>'+ me.directionChicago +'</td>';
         html += '</tr>';
     });
-    if (me.trainInfo.tList.length == 0) {
+    if (me.trainInfo.apiTrainData.length == 0) {
         html += '<tr><td colspan=4>Invalid train data - Check query args</td></tr>';
         me.trainInfo.valid = false;
     }
@@ -363,6 +379,12 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
 MetraRealTime.prototype.updateStatus = function(status, e) {
     $(this.selectorStatus).show().html(status);
     console.log(status, e);
+};
+
+// used for google analytics
+MetraRealTime.prototype._stationReqStr = function() {
+    var sr = this.stationRequest;
+    return sr.Corridor +'-'+ sr.Origin +'-'+ sr.Destination;
 };
 
 MetraRealTime.prototype.autoRefresh = function(enableRefresh) {
@@ -417,6 +439,10 @@ MetraRealTime.prototype.updateNextTrain = function() {
     $('.lastUpdated').html(me.trainInfo.updated);
 };
 
+/*
+ * @param {String} dateStr - date string
+ * @returns {Number} If not zero, nextTrainEpoch was updated
+ */
 MetraRealTime.prototype.updateNextTrainEpoch = function(dateStr) {
     var me = this;
     var now = new Date().getTime();
@@ -424,13 +450,17 @@ MetraRealTime.prototype.updateNextTrainEpoch = function(dateStr) {
         var ms = dateStr.match(/Date\((\d+)\)/)[1];
         ms = parseInt(ms,10);
     } catch (e) {
-        return;
+        console.log(' === updateNextTrainEpoch error ',e);
+        return false;
     }
     if (!me.nextTrainEpoch 
         || (ms < me.nextTrainEpoch) 
         || (now > me.nextTrainEpoch) ) {
         me.nextTrainEpoch = ms;
         console.log(' === updateNextTrainEpoch set '+ new Date(me.nextTrainEpoch));
+        return me.nextTrainEpoch;
+    } else {
+        return false;
     }
 };
 
@@ -489,6 +519,7 @@ MetraRealTime.prototype.showCookies = function() {
     }
     $('.cookies').html('<p>Recent Valid Requests:</p>');
     sortable.sort(function(a, b) {return b[1] - a[1]})
+
     $.each(sortable, function(i, v){
         if (--remaining < 0) return;
         var t = new Date(v[1]);
