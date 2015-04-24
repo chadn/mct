@@ -352,10 +352,9 @@ MetraRealTime.prototype._aggregateTrainInfo = function(t, isNextTrain) {
 MetraRealTime.prototype.showTrainInfo2 = function() {
     var me = this;
     var html = '';
-    html += '<table><thead><td>Train</td>';
+    html += '<table><thead><td>'+ me.directionChicago +'<br>Train</td>';
     html += '<td>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
     html += '<td>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
-    html += '<td>Inbound<br>Outbound</td></thead>';
     $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
           return; // skip trains that don't stop at Origin
@@ -364,7 +363,6 @@ MetraRealTime.prototype.showTrainInfo2 = function() {
         html += '<td>'+ train_num +'</td>';
         html += '<td>'+ (trainObj[me.stationRequest.Origin] || '-') +'</td>';
         html += '<td>'+ (trainObj[me.stationRequest.Destination] || '-') +'</td>';
-        html += '<td>'+ me.directionChicago +'</td>';
         html += '</tr>';
     });
     if (me.trainInfo.apiTrainData.length == 0) {
