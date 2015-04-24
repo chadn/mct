@@ -16,6 +16,10 @@
         font-family: Verdana, Helvetica, sans-serif;
     }
     p {margin:0;}
+    .container {
+        max-width: 480px;
+        margin: 0 auto;
+    }
     .feedback {
         display:none;
     }
@@ -86,22 +90,16 @@
     .cf:after {
         clear: both;
     }
+    .feedback-ask{
+        float:right;
+    }
     </style>
 </head>
 <body>
     <!--[if lt IE 7]>
         <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
-    <div class='row cf feedback'>
-        <p>Submit Feedback: Train arrived ...
-            <ul>
-            <li><span class='fback' ga='est-before'>Before estimate</span></li>
-            <li><span class='fback' ga='est-after'>After estimate</span></li>
-            <li><span class='fback' ga='est-same'>Same as estimate</span></li>
-            <li><span class='fback' ga='est-varied'>... Estimate Varied</span></li>
-            <ul>
-        <p>
-    </div>
+  <div class='container'>  
     <div class='row cf'>
         <a href="/metra/" class='logo'>
             <img src="http://metrarail.com/content/dam/metra/images/logos/logo.png" alt="back to home">
@@ -120,6 +118,20 @@
     <!-- Add your site or application content here -->
     <div class="row cf traindata">
     </div>
+    <div class='row cf feedback-ask'>
+        <p>Feedback</p>
+    </div>
+    <div class='row cf feedback'>
+        <p>Submit Feedback: Train arrived ...
+            <ul>
+            <li><span class='fback' ga='est-before'>Before estimate</span></li>
+            <li><span class='fback' ga='est-after'>After estimate</span></li>
+            <li><span class='fback' ga='est-same'>Same as estimate</span></li>
+            <li><span class='fback' ga='est-varied'>... Estimate Varied</span></li>
+            <ul>
+        <p>
+    </div>
+
     <div class='row cf cookies'>
     </div>
     <div class='row help'>
@@ -136,6 +148,9 @@
     http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route=Metra%20Milwaukee%20District%20North%20Line&metraRoute=Milwaukee%20District%20North&origStop=Lake%20Cook%20Rd&destStop=Healy
     <script src="jquery.min.js"></script>
 -->
+  </div>
+</body>
+
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
     <script>
@@ -188,7 +203,7 @@ MetraRealTime.prototype.init = function() {
         Destination : h[me.query.C] ? h[me.query.C][me.query.D] : ''
     }
 
-    $('.status').on('click', '.nextTrain', function(e){
+    $('body').on('click', '.feedback-ask', function(e){
         e.preventDefault();
         $('.feedback').slideToggle();
     });
@@ -703,5 +718,4 @@ function getParameterByName(name, str) {
 
     </script>
 
-</body>
 </html>
