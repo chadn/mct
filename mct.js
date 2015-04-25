@@ -11,6 +11,7 @@ var MyCommuteTrain = function () {
 MyCommuteTrain.prototype.init = function() {
     var me = this;
     // defaults
+    me.debug = false;
     me.selectorTrain = '.traindata';
     me.selectorStatus = '.status';
     me.refreshSecs = parseInt(getParameterByName('R'),10) || 30;
@@ -64,7 +65,7 @@ MyCommuteTrain.prototype.init = function() {
 
     ga('send', 'event', 'munt', 'init');
 
-    console.log('MyCommuteTrain init complete.');
+    me.debug && console.log('MyCommuteTrain init complete.');
     return this;
 };
 
@@ -117,7 +118,7 @@ MyCommuteTrain.prototype.go = function() {
         me.showStations(me.stationRequest.Corridor, me.stationRequest.Origin);
         //me.showStations('MD-N','HEALY');
     }
-    console.log('MyCommuteTrain go complete. window.mrt = ', me);
+    me.debug && console.log('MyCommuteTrain go complete. window.mrt = ', me);
     return this;
 };
 
@@ -141,7 +142,7 @@ MyCommuteTrain.prototype.aggregateTrainInfo = function(data) {
     try {
       json = JSON.parse(data.d);
     } catch (e) {
-      console.log("Trouble converting to JSON", data, e);
+      me.debug && console.log("Trouble converting to JSON", data, e);
     }
     me.trainInfo = me.trainInfo || {
         valid: true,
@@ -156,7 +157,7 @@ MyCommuteTrain.prototype.aggregateTrainInfo = function(data) {
     $.each(['train1', 'train2', 'train3'], function(indx,train) {
         var t = json[train];
         if (t.dpt_station == me.stationRequest.Origin) {
-            console.log('aggregateTrainInfo() possible nextTrain '+ me.parseMetraDate(t.estimated_dpt_time));
+            me.debug && console.log('aggregateTrainInfo() possible nextTrain '+ me.parseMetraDate(t.estimated_dpt_time));
             if (me.updateNextTrainEpoch(t.estimated_dpt_time)) {
                 nextTrainNum = train;
             }
@@ -181,14 +182,14 @@ MyCommuteTrain.prototype.aggregateTrainInfo = function(data) {
 MyCommuteTrain.prototype._aggregateTrainInfo = function(t, isNextTrain) {
     var me = this;
     if (!t) {
-        console.log('_aggregateTrainInfo() no train');
+        me.debug && console.log('_aggregateTrainInfo() no train');
         return;
     }
     var parsedData = me.trainInfo.parsedData || {};
     var sTime = me.parseMetraDate(t.scheduled_dpt_time);
     var eTime = me.parseMetraDate(t.estimated_dpt_time);
     if (!sTime) {
-        console.log('_aggregateTrainInfo() skipping invalid train',t);
+        me.debug && console.log('_aggregateTrainInfo() skipping invalid train',t);
         return false;
     }
     if (isNextTrain) {
@@ -226,8 +227,9 @@ MyCommuteTrain.prototype.showTrainInfo2 = function() {
 };
 
 MyCommuteTrain.prototype.updateStatus = function(status, e) {
+    var me = this;
     $(this.selectorStatus).show().html(status);
-    console.log(status, e);
+    me.debug && console.log(status, e);
 };
 
 // used for google analytics
@@ -255,7 +257,7 @@ MyCommuteTrain.prototype.autoRefresh = function(enableRefresh) {
 MyCommuteTrain.prototype.processTrainTimes = function(data) {
     var me = this;
     if (!data) {
-        console.log("processTrainTimes: no data");
+        me.debug && console.log("processTrainTimes: no data");
         return false;
     }
     try {
@@ -265,7 +267,7 @@ MyCommuteTrain.prototype.processTrainTimes = function(data) {
         me.showCookies();
         return true;
     } catch (e) {
-        console.log("processTrainTimes: Trouble parsing response", data, e);
+        me.debug && console.log("processTrainTimes: Trouble parsing response", data, e);
         return false;
     }
 };
@@ -307,7 +309,7 @@ MyCommuteTrain.prototype.updateNextTrainEpoch = function(dateStr) {
         || (ms < me.nextTrainEpoch) 
         || (now > me.nextTrainEpoch) ) {
         me.nextTrainEpoch = ms;
-        console.log(' === updateNextTrainEpoch set '+ new Date(me.nextTrainEpoch));
+        me.debug && console.log(' === updateNextTrainEpoch set '+ new Date(me.nextTrainEpoch));
         return me.nextTrainEpoch;
     } else {
         return false;
@@ -355,7 +357,7 @@ MyCommuteTrain.prototype.updateCookies = function() {
         + (getParameterByName('R',s) ? '&R=' + getParameterByName('R',s) : '');
     me.cookieJson[p] = new Date().getTime();
     $.cookie(me.cookieName, me.cookieJson);
-    //console.log("updateCookies: ", me.cookieJson);
+    //me.debug && console.log("updateCookies: ", me.cookieJson);
 };
 MyCommuteTrain.prototype.showCookies = function() {
     var me = this;
@@ -368,7 +370,7 @@ MyCommuteTrain.prototype.showCookies = function() {
         sortable.push([str, secs]);
     });
     if (sortable.length == 0) {
-        console.log('showCookies: No cookies found, returning');
+        me.debug && console.log('showCookies: No cookies found, returning');
         return;
     }
     $('.cookies').html('<p>Recent Valid Requests:</p>');
@@ -391,7 +393,7 @@ MyCommuteTrain.prototype.showCookies = function() {
         html += '</span>';
         $('.cookies').append(html);
     });
-    //console.log("showCookies: ", me.cookieJson);
+    //me.debug && console.log("showCookies: ", me.cookieJson);
 };
 
 
@@ -410,7 +412,7 @@ MyCommuteTrain.prototype.reqTrainData = function(stationReq, cb) {
     } catch (e) {
         me.updateStatus('Trouble with JSON.stringify', e);
     }
-    console.log('MyCommuteTrain.reqTrainData ...');
+    me.debug && console.log('MyCommuteTrain.reqTrainData ...');
 
     var jqxhr = $.ajax({
         url: me.reqUrl,
@@ -420,7 +422,7 @@ MyCommuteTrain.prototype.reqTrainData = function(stationReq, cb) {
         data: me.reqJson,
         timeout: 1000 * (me.refreshSecs > 2 ? me.refreshSecs - 2 : 1),
         error: function(jqXHR, textStatus, errorThrown) {
-            console.log('ajax error:', textStatus, jqXHR, errorThrown);
+            me.debug && console.log('reqTrainData() ajax error:', textStatus, jqXHR, errorThrown);
             cb(null);
         },
         success: cb
@@ -434,13 +436,13 @@ MyCommuteTrain.prototype.reqTrainData = function(stationReq, cb) {
 MyCommuteTrain.prototype.showStations = function(C,O) {
     var me = this;
     var html = '';
-    console.log('showStations('+ C +','+ O +')');
+    me.debug && console.log('showStations('+ C +','+ O +')');
     if (!me.stationsHash[C]) {
         // choice 1: show options for Corridor
         html += '<p>Choose Valid Corridor:</p>';
     }
     $.each(me.stationsRaw, function(i,co){
-        console.log('showStations'+i+' corridor obj:', co);
+        me.debug && console.log('showStations'+i+' corridor obj:', co);
         if (!me.stationsHash[C]) {
             // choice 1: show options for Corridor
             html += '<a href="?C='+ co.C +'">'+ co.name +'</a>';
@@ -450,7 +452,7 @@ MyCommuteTrain.prototype.showStations = function(C,O) {
 
         if (co.C != C) return;
         html += '<p>'+ co.name +' Stations</p>';
-        console.log('showStations-2');
+        me.debug && console.log('showStations-2');
         if (me.stationsHash[C][O]) {
             // choice 3
             html += '<p> Origin: '+ me.stationsHash[C][O] +'<br>Choose Destination</p>';
@@ -460,7 +462,7 @@ MyCommuteTrain.prototype.showStations = function(C,O) {
         }
         // list stations in train stop order, aka stationsRaw
         $.each(co.stations, function(i,so){
-            console.log('showStations'+i+' station obj:', so);
+            me.debug && console.log('showStations'+i+' station obj:', so);
             if (me.stationsHash[C][O]) {
                 if (so.id == O) {
                     html += '<a>'+ so.name +'</a>';
@@ -503,7 +505,7 @@ MyCommuteTrain.prototype.finalStation = function(stationReq) {
           me.finalStationId = so.id;
         }
     });
-    console.log('finalStation '+ stationReq +' heading '+ me.directionChicago +' Chicago: '+ me.finalStationId);
+    me.debug && console.log('finalStation '+ stationReq +' heading '+ me.directionChicago +' Chicago: '+ me.finalStationId);
     return me.finalStationId;
 };
 
