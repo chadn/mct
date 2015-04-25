@@ -75,6 +75,7 @@ MyCommuteTrain.prototype.go = function() {
         // find time train departs Origin
         $('.loading').hide();
         $('.status').show();
+        $('.feedback-ask').show();
         $('.refresh-freq').addClass('refresh-loading');
         ga('send', 'event', 'munt', 'reqTrainData', me._stationReqStr() );
 
@@ -261,6 +262,7 @@ MyCommuteTrain.prototype.processTrainTimes = function(data) {
         me.aggregateTrainInfo(data);
         me.showTrainInfo2();
         me.updateCookies();
+        me.showCookies();
         return true;
     } catch (e) {
         console.log("processTrainTimes: Trouble parsing response", data, e);
@@ -346,10 +348,14 @@ MyCommuteTrain.prototype.updateCookies = function() {
     if (!(me.trainInfo.valid && $.cookie)) return;
     $.cookie.json = true;
     me.cookieJson = $.cookie(me.cookieName) || {};
-    me.cookieJson[location.search] = new Date().getTime();
+    var s = location.search;
+    var p = '?C='+ getParameterByName('C',s)
+        + '&O=' + getParameterByName('O',s)
+        + '&D=' + getParameterByName('D',s)
+        + (getParameterByName('R',s) ? '&R=' + getParameterByName('R',s) : '');
+    me.cookieJson[p] = new Date().getTime();
     $.cookie(me.cookieName, me.cookieJson);
     //console.log("updateCookies: ", me.cookieJson);
-    me.showCookies();
 };
 MyCommuteTrain.prototype.showCookies = function() {
     var me = this;
@@ -376,12 +382,12 @@ MyCommuteTrain.prototype.showCookies = function() {
             + getParameterByName('D',v[0])
             + (getParameterByName('R',v[0]) ? ', R=' + getParameterByName('R',v[0]) : '');
         var reverselink = '?C='+ getParameterByName('C',v[0])
-            + '&D=' + getParameterByName('D',v[0])
-            + '&O=' + getParameterByName('O',v[0])
+            + '&O=' + getParameterByName('D',v[0])
+            + '&D=' + getParameterByName('O',v[0])
             + (getParameterByName('R',v[0]) ? '&R=' + getParameterByName('R',v[0]) : '');
         var html = '<span>';
         html += '<a title="'+ t +'" href="'+ v[0] +'">'+ str +'</a>';
-        html += '&nbsp;<a title="Reverse route" href="'+ reverselink +'">Reverse</a>';
+        html += '&nbsp;(<a title="Reverse route" href="'+ reverselink +'">Reverse</a>)';
         html += '</span>';
         $('.cookies').append(html);
     });
