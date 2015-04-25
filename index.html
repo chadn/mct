@@ -13,89 +13,95 @@
 
     <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
     <style>
-    body {
-        font-family: Verdana, Helvetica, sans-serif;
-    }
-    p {margin:0;}
-    .container {
-        max-width: 480px;
-        margin: 0 auto;
-    }
-    .feedback-ask,
-    .feedback {
-        display:none;
-    }
-    .feedback li {
-        padding-bottom: 15px;
-    }
-    .logo {
-      display:block;
-      float:left;
-      width:118px;
-      height:51px;
-    }
-    .loading,
-    .status {
-      display:none;
-      float:left;
-      padding-left:10px;
-    }
-    .loading {
-        display:block;
-    }
-    .bluebox,
-    .fback,
-    .nextTrain {
-      line-height: 24px;
-      font-weight: bold;
-      background-color: #0B57A2;
-      color: #FFF;
-      padding:3px 6px;
-      border-radius: 5px; 
-      -moz-border-radius: 5px; //Firefox
-      -webkit-border-radius: 5px; // Chrome/Safari 
-    }
-    .fback-selected {
-        background-color: #06A25E;
-    }
-    .refresh-on,
-    .enable-refresh {
-      font-size: 0.8em;
-      line-height: 18px;
-    }
-    .refresh-loading {
-        font-style: italic; 
-    }
-    td {
-      background-color: #EEE;
-      padding: 5px;
-    }
-    thead td,
-    tr:nth-child(even)  td {
-      background-color: #DDD;
-    }
-    .stations a,
-    .cookies span,
-    .help a {
-      display:block;
-      padding: 3px 0;
-    }
-    .help {display:none;}
-    .row {
-      padding-top:10px;
-    }
-    .cf:before,
-    .cf:after {
-        content: " "; /* 1 */
-        display: table; /* 2 */
-    }
-    .cf:after {
-        clear: both;
-    }
-    .about,
-    .feedback-ask{
-        float:right;
-    }
+body {
+    font-family: Verdana, Helvetica, sans-serif;
+}
+p {
+    margin: 0;
+}
+.container {
+    max-width: 480px;
+    margin: 0 auto;
+}
+.feedback-ask,
+.feedback {
+    display: none;
+}
+.feedback li {
+    padding-bottom: 15px;
+}
+.logo {
+    display: block;
+    float: left;
+    width: 118px;
+    height: 51px;
+}
+.loading,
+.status {
+    display: none;
+    float: left;
+    padding-left: 10px;
+}
+.loading {
+    display: block;
+}
+.fback,
+.bluebox {
+    line-height: 24px;
+    font-weight: bold;
+    background-color: #0B57A2;
+    color: #FFF;
+    padding: 3px 6px;
+    border-radius: 5px;
+    -moz-border-radius: 5px; //Firefox
+    -webkit-border-radius: 5px; // Chrome/Safari 
+}
+.nextDTrain {
+    background-color: #000;
+}
+.fback-selected {
+    background-color: #06A25E;
+}
+.refresh-on,
+.enable-refresh {
+    font-size: 0.8em;
+    line-height: 18px;
+}
+.refresh-loading {
+    font-style: italic;
+}
+td {
+    background-color: #EEE;
+    padding: 5px;
+}
+thead td,
+tr:nth-child(even) td {
+    background-color: #DDD;
+}
+.stations a,
+.cookies span,
+.help a {
+    display: block;
+    padding: 3px 0;
+}
+.help {
+    display: none;
+}
+.row {
+    padding-top: 10px;
+}
+.cf:before,
+.cf:after {
+    content: " "; /* 1 */
+    display: table; /* 2 */
+}
+.cf:after {
+    clear: both;
+}
+.about,
+.feedback-ask {
+    float: right;
+}
     </style>
 </head>
 <body>

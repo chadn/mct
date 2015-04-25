@@ -19,7 +19,6 @@ MyCommuteTrain.prototype.init = function() {
     me.reqType = 'POST';
     me.cookieName = 'metra';
     me.recentCount = 6;
-    me.nextTrainEpoch = null;
     me.query = {
         C : getParameterByName('C'),
         O : getParameterByName('O'),
@@ -137,7 +136,6 @@ MyCommuteTrain.prototype.goAgain = function() {
 
 MyCommuteTrain.prototype.aggregateTrainInfo = function(data) {
     var me = this;
-    var nextTrainNum;
     var json;
     try {
       json = JSON.parse(data.d);
@@ -150,23 +148,10 @@ MyCommuteTrain.prototype.aggregateTrainInfo = function(data) {
         parsedData: {},
         apiTrainData: []
     }
-    if (json.train1.dpt_station == me.stationRequest.Origin) {
-        delete me.nextTrainEpoch;
-    }
-    // first iterate through api json data to figure out nextTrainEpoch
+    // iterate over train data from API to build parsedData
     $.each(['train1', 'train2', 'train3'], function(indx,train) {
         var t = json[train];
-        if (t.dpt_station == me.stationRequest.Origin) {
-            me.debug && console.log('aggregateTrainInfo() possible nextTrain '+ me.parseMetraDate(t.estimated_dpt_time));
-            if (me.updateNextTrainEpoch(t.estimated_dpt_time)) {
-                nextTrainNum = train;
-            }
-        }
-    });
-    // second iterate to build parsedData
-    $.each(['train1', 'train2', 'train3'], function(indx,train) {
-        var t = json[train];
-        if (!me._aggregateTrainInfo(t, train==nextTrainNum)) {
+        if (!me._aggregateTrainInfo(t)) {
               me.trainInfo.valid = false;
               return;
         }
@@ -177,9 +162,8 @@ MyCommuteTrain.prototype.aggregateTrainInfo = function(data) {
 
 /* 
  *  @param t
- *  @param isNextTrain - if true, then this train is the Next Train
  */
-MyCommuteTrain.prototype._aggregateTrainInfo = function(t, isNextTrain) {
+MyCommuteTrain.prototype._aggregateTrainInfo = function(t) {
     var me = this;
     if (!t) {
         me.debug && console.log('_aggregateTrainInfo() no train');
@@ -192,38 +176,73 @@ MyCommuteTrain.prototype._aggregateTrainInfo = function(t, isNextTrain) {
         me.debug && console.log('_aggregateTrainInfo() skipping invalid train',t);
         return false;
     }
-    if (isNextTrain) {
-        eTime = '<span class="bluebox">' + eTime + '</span>';
-    }
+    var html = eTime +' ('+ (sTime==eTime ? 'same' : sTime) +')';
+    html += '<br><span data-mins="'+ me.fromNow(t.estimated_dpt_time) +'">'
+        + me.fromNow(t.estimated_dpt_time, 1) +'</span>';
+
     parsedData[t.train_num] = parsedData[t.train_num] || {};
-    parsedData[t.train_num][t.dpt_station] = eTime +' ('+ (sTime==eTime ? 'same' : sTime) +')';
+    parsedData[t.train_num][t.dpt_station] = html;
     me.trainInfo.parsedData = parsedData;
     return true;
 };
 
-MyCommuteTrain.prototype.showTrainInfo2 = function() {
+MyCommuteTrain.prototype.highlightNextTrain = function() {
     var me = this;
+
+    var origin = 9999;
+    var dest = 9999;
+    $('.origin span').each(function(){
+        var cur = parseInt($(this).data('mins'),10);
+        if (cur >= 0 && cur < origin) origin = cur;
+    });
+    $('.destination span').each(function(){
+        var cur = parseInt($(this).data('mins'),10);
+        if (cur >= 0 && cur < dest) dest = cur;
+    });
+    $('.origin span').removeClass('bluebox');
+    $('.origin span[data-mins='+ origin +']').addClass('bluebox nextOTrain');
+
+    // should we highlight origin and destination? for now, yes.
+    // use case: show train arrival time once already on the train
+    // however, may want to show this a different color
+    if (dest < origin) {
+        $('.destination span[data-mins='+ dest +']').addClass('bluebox nextDTrain');
+    }
+    me.debug && console.log('highlightNextTrain() done. orig, dest', origin, dest);
+};
+
+MyCommuteTrain.prototype.showTrainInfo = function() {
+    var me = this;
+
+    var s = location.search;
+    var rev = '<a title="Reverse route" href="'
+    + '?C='+ getParameterByName('C', s)
+    + '&O=' + getParameterByName('D', s)
+    + '&D=' + getParameterByName('O', s)
+    + (getParameterByName('R',s) ? '&R=' + getParameterByName('R',s) : '')
+    + '">Reverse</a>';
+
     var html = '';
-    html += '<table><thead><td>'+ me.directionChicago +'<br>Train</td>';
-    html += '<td>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
-    html += '<td>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
+    html += '<table><thead><td>'+ me.directionChicago +'<br>Train<br>'+ rev +'</td>';
+    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
+    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
     $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
           return; // skip trains that don't stop at Origin
         }
         html += '<tr>';
         html += '<td>'+ train_num +'</td>';
-        html += '<td>'+ (trainObj[me.stationRequest.Origin] || '-') +'</td>';
-        html += '<td>'+ (trainObj[me.stationRequest.Destination] || '-') +'</td>';
+        html += '<td class="origin">'+ (trainObj[me.stationRequest.Origin] || '-') +'</td>';
+        html += '<td class="destination">'+ (trainObj[me.stationRequest.Destination] || '-') +'</td>';
         html += '</tr>';
     });
     if (me.trainInfo.apiTrainData.length == 0) {
-        html += '<tr><td colspan=4>Invalid train data - Check query args</td></tr>';
+        html += '<tr><td colspan=3>Invalid train data from API or bad args</td></tr>';
         me.trainInfo.valid = false;
     }
     html += '</table>'
     $(me.selectorTrain).html(html);
-    me.updateNextTrain();
+    $('.lastUpdated').html(me.trainInfo.updated);
 };
 
 MyCommuteTrain.prototype.updateStatus = function(status, e) {
@@ -256,82 +275,95 @@ MyCommuteTrain.prototype.autoRefresh = function(enableRefresh) {
 // returns true if processed ok, false if not
 MyCommuteTrain.prototype.processTrainTimes = function(data) {
     var me = this;
+    var ret = false;
     if (!data) {
         me.debug && console.log("processTrainTimes: no data");
         return false;
     }
     try {
         me.aggregateTrainInfo(data);
-        me.showTrainInfo2();
+        me.showTrainInfo();
+        me.highlightNextTrain();
         me.updateCookies();
         me.showCookies();
-        return true;
+        ret = true;
     } catch (e) {
         me.debug && console.log("processTrainTimes: Trouble parsing response", data, e);
-        return false;
+        ret = false;
     }
+    return ret;
 };
 
-MyCommuteTrain.prototype.updateNextTrain = function() {
-    var me = this;
-    var diff;
-    var html = '??';
-    if (me.nextTrainEpoch) {
-        diff = me.nextTrainEpoch - new Date().getTime(); // difference in ms
-        diff = Math.round(diff / (60*1000)); // mins
-        if (diff > 1) {
-            html = diff + ' mins';
-        } else if (diff == 1) {
-            html = '1 min';
-        } else {
-            html = '< 1 min';
-        }
-    }
-    $('.nextTrain').html(html);
-    $('.lastUpdated').html(me.trainInfo.updated);
-};
-
-/*
- * @param {String} dateStr - date string
- * @returns {Number} If not zero, nextTrainEpoch was updated
+/**
+ * returns minutes from now for a given date
+ * 
+ * @param {String|Number} dateStr - if string, assumes date string from Metra. If number, assumes epoch ms.
+ * @param {Boolean} [returnStr=false] - if false, returns number. If true, returns string: "3 mins", "1 min", "< 1 min"
+ * @returns {null|Number|String} mins from now, or null if invalid date
  */
-MyCommuteTrain.prototype.updateNextTrainEpoch = function(dateStr) {
+MyCommuteTrain.prototype.fromNow = function(dateStr, returnStr) {
     var me = this;
-    var now = new Date().getTime();
-    try {
-        var ms = dateStr.match(/Date\((\d+)\)/)[1];
-        ms = parseInt(ms,10);
-    } catch (e) {
-        console.log(' === updateNextTrainEpoch error ',e);
-        return false;
+
+    var ms = me.metraDate2EpochMs(dateStr);
+    if (!ms) return null;
+
+    var diff = ms - new Date().getTime(); // difference in ms
+    diff = Math.round(diff / (60*1000)); // now diff in mins
+
+    if (!returnStr) {
+        return diff;
     }
-    if (!me.nextTrainEpoch 
-        || (ms < me.nextTrainEpoch) 
-        || (now > me.nextTrainEpoch) ) {
-        me.nextTrainEpoch = ms;
-        me.debug && console.log(' === updateNextTrainEpoch set '+ new Date(me.nextTrainEpoch));
-        return me.nextTrainEpoch;
-    } else {
-        return false;
+    var ret = '';
+
+    if (diff >= 60) {
+        ret = Math.round(diff/60) + 'hr ';
+        diff = diff % 60;
     }
+    if (diff > 1) {
+        ret += diff + ' mins';
+    } else if (diff == 1) {
+        ret += '1 min';
+    } else if (!ret) {
+        ret += '< 1 min';
+    }
+    return ret;
 };
+
 
 MyCommuteTrain.prototype.parseMetraDate = function(dateStr, inclSecs) {
+    var me = this;
+    var ms = me.metraDate2EpochMs(dateStr);
+    if (ms === null) {
+        me.debug && console.log(' === parseMetraDate could not parse dateStr '+ dateStr);
+        return null;
+    }
+    var d = new Date(ms);
+    var str = d.getHours() - (d.getHours() > 12 ? 12 : 0);
+    str += ':' + (d.getMinutes() < 10 ? '0':'') + d.getMinutes();
+    if (inclSecs) {
+        str += ':' + (d.getSeconds() < 10 ? '0':'') + d.getSeconds();
+    }
+    return str;
+};
+
+
+/*
+ * @param {String|Number} dateStr - date string from Metra, or if number, just return (already parsed)
+ * @returns {Number|null} ms since epoch, or null if invalid date
+ */
+MyCommuteTrain.prototype.metraDate2EpochMs = function(dateStr) {
+    var me = this;
+    if ("number" === typeof dateStr) {
+        return dateStr;
+    }
+    var d = null;
     try {
         var ms = dateStr.match(/Date\((\d+)\)/)[1];
-        var d = new Date(parseInt(ms,10));
-        //console.log('parseMetraDate',ms,d);
-
-        var str = d.getHours() - (d.getHours() > 12 ? 12 : 0);
-        str += ':' + (d.getMinutes() < 10 ? '0':'') + d.getMinutes();
-        if (inclSecs) {
-            str += ':' + (d.getSeconds() < 10 ? '0':'') + d.getSeconds();
-        }
-        return str;
+        d = parseInt(ms,10);
     } catch (e) {
-        console.log('Trouble with parseMetraDate('+dateStr+')');
-        return '';
+        me.debug && console.log('metraDate2EpochMs() could not parse dateStr '+ dateStr);
     }
+    return d;
 };
 
 
@@ -383,13 +415,8 @@ MyCommuteTrain.prototype.showCookies = function() {
             + getParameterByName('O',v[0]) + ' to '
             + getParameterByName('D',v[0])
             + (getParameterByName('R',v[0]) ? ', R=' + getParameterByName('R',v[0]) : '');
-        var reverselink = '?C='+ getParameterByName('C',v[0])
-            + '&O=' + getParameterByName('D',v[0])
-            + '&D=' + getParameterByName('O',v[0])
-            + (getParameterByName('R',v[0]) ? '&R=' + getParameterByName('R',v[0]) : '');
         var html = '<span>';
         html += '<a title="'+ t +'" href="'+ v[0] +'">'+ str +'</a>';
-        html += '&nbsp;(<a title="Reverse route" href="'+ reverselink +'">Reverse</a>)';
         html += '</span>';
         $('.cookies').append(html);
     });
