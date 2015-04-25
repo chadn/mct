@@ -59,7 +59,7 @@ MyCommuteTrain.prototype.init = function() {
     // may need to use HTML5 visibility API 
     // https://greensock.com/forums/topic/9059-cross-browser-to-detect-tab-or-window-is-active-so-animations-stay-in-sync-using-html5-visibility-api/
     $(window).on('focus', function(e){
-        $('.enable-refresh').click();
+        me.goAgain();
     })
 
     ga('send', 'event', 'munt', 'init');
@@ -224,8 +224,8 @@ MyCommuteTrain.prototype.showTrainInfo = function() {
 
     var html = '';
     html += '<table><thead><td>'+ me.directionChicago +'<br>Train<br>'+ rev +'</td>';
-    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br>Estimated (Sched)</td>'
-    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br>Estimated (Sched)</td>'
+    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br><nobr>Estimated (Sched)</nobr></td>'
+    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br><nobr>Estimated (Sched)</nobr></td>'
     $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
           return; // skip trains that don't stop at Origin
@@ -259,7 +259,6 @@ MyCommuteTrain.prototype._stationReqStr = function() {
 
 MyCommuteTrain.prototype.autoRefresh = function(enableRefresh) {
     var me = this;
-    var html;
     if (typeof enableRefresh === 'boolean') {
         me.refreshEnabled = enableRefresh;
         if (enableRefresh === true) {
