@@ -6,7 +6,7 @@ This is a simple web-based app providing real-time info for riders communting on
 
 Displays how many minutes until the next train arrives at given Metra station, using the Metra Real-Time Tracker API.  That is, if train is scheduled to arrive in 5 mins, but is running 10 mins late, the app lets you know you have 15 minutes till next train.
 
-!(https://github.com/chadn/mct/blob/master/images/mct-2015-04-25.png)
+![](https://github.com/chadn/mct/blob/master/images/mct-2015-04-25.png "Train 10 mins late, arrives in 15 mins" =419x541)
 
 ## Features
 
