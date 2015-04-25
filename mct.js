@@ -323,7 +323,10 @@ MyCommuteTrain.prototype.fromNow = function(dateStr, returnStr) {
         ret += diff + ' mins';
     } else if (diff == 1) {
         ret += '1 min';
+    } else if (diff < 0) {
+        // return nothing for trains in past
     } else if (!ret) {
+        // only return mins if ret is empty (no hours)
         ret += '< 1 min';
     }
     return ret;
