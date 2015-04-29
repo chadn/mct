@@ -320,7 +320,7 @@ MyCommuteTrain.prototype.fromNow = function(dateStr, returnStr) {
     var ret = '';
 
     if (diff >= 60) {
-        ret = Math.round(diff/60) + 'hr ';
+        ret = Math.floor(diff/60) + 'hr ';
         diff = diff % 60;
     }
     if (diff > 1) {
