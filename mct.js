@@ -220,7 +220,7 @@ MyCommuteTrain.prototype.showTrainInfo = function() {
     var me = this;
 
     var s = location.search;
-    var rev = '<a title="Reverse route" href="'
+    var rev = '<a title="Reverse route" class="reverse" href="'
     + '?C='+ getParameterByName('C', s)
     + '&O=' + getParameterByName('D', s)
     + '&D=' + getParameterByName('O', s)
@@ -547,7 +547,8 @@ MyCommuteTrain.prototype.finalStation = function(stationReq) {
           me.finalStationId = so.id;
         }
     });
-    me.debug && console.log('finalStation '+ stationReq +' heading '+ me.directionChicago +' Chicago: '+ me.finalStationId);
+    me.debug && console.log('finalStation '+ stationReq.Destination 
+        +' heading '+ me.directionChicago +' Chicago: '+ me.finalStationId);
     return me.finalStationId;
 };
 
