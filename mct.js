@@ -227,13 +227,21 @@ MyCommuteTrain.prototype.showTrainInfo = function() {
     + (getParameterByName('R',s) ? '&R=' + getParameterByName('R',s) : '')
     + '">Reverse</a>';
 
+    var displayedFirstOrigin = false;
     var html = '';
     html += '<table><thead><td>'+ me.directionChicago +'<br>Train<br>'+ rev +'</td>';
     html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br><nobr>Est. (Sched)</nobr></td>'
     html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br><nobr>Est. (Sched)</nobr></td>'
     $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
-          return; // skip trains that don't stop at Origin
+            // Skip trains that don't stop at Origin, but 
+            // don't skip trains that already left origin but have not arrived at destination, 
+            // in order to handle case where person could be on a delayed train and wants to know arrival time.
+            // Once we've displayed a table row containing an origin, don't show any 
+            // more rows that have destination and not origin
+            if (displayedFirstOrigin) return;
+        } else {
+            displayedFirstOrigin = true;
         }
         html += '<tr>';
         html += '<td>'+ train_num +'</td>';
