@@ -229,8 +229,8 @@ MyCommuteTrain.prototype.showTrainInfo = function() {
 
     var html = '';
     html += '<table><thead><td>'+ me.directionChicago +'<br>Train<br>'+ rev +'</td>';
-    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br><nobr>Estimated (Sched)</nobr></td>'
-    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br><nobr>Estimated (Sched)</nobr></td>'
+    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br><nobr>Est. (Sched)</nobr></td>'
+    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br><nobr>Est. (Sched)</nobr></td>'
     $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
           return; // skip trains that don't stop at Origin
