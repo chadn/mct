@@ -19,6 +19,7 @@ MyCommuteTrain.prototype.init = function() {
     me.debug = false;
     me.selectorTrain = '.traindata';
     me.selectorStatus = '.status';
+    me.metra = MctMetra();
     me.refreshSecs = parseInt(getParameterByName('R'),10) || 30;
     me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
     me.reqType = 'POST';
@@ -84,7 +85,7 @@ MyCommuteTrain.prototype.go = function() {
         $('.refresh-freq').addClass('refresh-loading');
         ga('send', 'event', 'mct', 'reqTrainData', me._stationReqStr() );
 
-        me.reqTrainData(me.stationRequest, function(data) {
+        me.metra.reqTrainData(me.stationRequest, function(data) {
             if (me.processTrainTimes(data)) {
                 ga('send', 'event', 'mct', 'respTrainDataOK', me._stationReqStr() );
             } else {
@@ -103,7 +104,7 @@ MyCommuteTrain.prototype.go = function() {
             // End station - skip getting times, since api won't have answers
             return;
         }
-        me.reqTrainData(stationReq, function(data2) {
+        me.metra.reqTrainData(stationReq, function(data2) {
             me.processTrainTimes(data2);
             me.goAgain();
         });
@@ -448,38 +449,7 @@ MyCommuteTrain.prototype.showCookies = function() {
 };
 
 
-/**
- * Makes api call to get train data.
- *
- * @param {object} [stationReq]
- * @param {function(object)} [cb] callback function, passed null on error, or object on success
- */
-MyCommuteTrain.prototype.reqTrainData = function(stationReq, cb) {
-    var me = this;
-    // curl "http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData" -H "Pragma: no-cache" -H "Content-Type: application/json; charset=UTF-8" -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Cache-Control: no-cache" --data-binary '{"stationRequest":{"Corridor":"MD-N","Destination":"HEALY","Origin":"LAKECOOKRD","timestamp":"/Date(1405957630947-0000)/"}}' --compressed
-    stationReq.timestamp = stationReq.timestamp || "/Date(" + new Date().getTime() + "-0000)/";
-    try {
-        me.reqJson = JSON.stringify({ stationRequest: stationReq });
-    } catch (e) {
-        me.updateStatus('Trouble with JSON.stringify', e);
-    }
-    me.debug && console.log('MyCommuteTrain.reqTrainData ...');
 
-    var jqxhr = $.ajax({
-        url: me.reqUrl,
-        type: me.reqType,
-        contentType: 'application/json; charset=UTF-8',
-        dataType: 'json',
-        data: me.reqJson,
-        timeout: 1000 * (me.refreshSecs > 2 ? me.refreshSecs - 2 : 1),
-        error: function(jqXHR, textStatus, errorThrown) {
-            me.debug && console.log('reqTrainData() ajax error:', textStatus, jqXHR, errorThrown);
-            cb(null);
-        },
-        success: cb
-    });
-    return me;
-};
 
 // C = Corridor
 // O = Origin
