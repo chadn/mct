@@ -82,13 +82,13 @@ MyCommuteTrain.prototype.go = function() {
         $('.status').show();
         $('.feedback-ask').show();
         $('.refresh-freq').addClass('refresh-loading');
-        ga('send', 'event', 'munt', 'reqTrainData', me._stationReqStr() );
+        ga('send', 'event', 'mct', 'reqTrainData', me._stationReqStr() );
 
         me.reqTrainData(me.stationRequest, function(data) {
             if (me.processTrainTimes(data)) {
-                ga('send', 'event', 'munt', 'respTrainDataOK', me._stationReqStr() );
+                ga('send', 'event', 'mct', 'respTrainDataOK', me._stationReqStr() );
             } else {
-                ga('send', 'event', 'munt', 'respTrainDataBad', me._stationReqStr() );
+                ga('send', 'event', 'mct', 'respTrainDataBad', me._stationReqStr() );
             }
             $('.refresh-freq').removeClass('refresh-loading');
         });
@@ -229,19 +229,28 @@ MyCommuteTrain.prototype.showTrainInfo = function() {
 
     var displayedFirstOrigin = false;
     var html = '';
-    html += '<table><thead><td>'+ me.directionChicago +'<br>Train<br>'+ rev +'</td>';
-    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br><nobr>Est. (Sched)</nobr></td>'
-    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br><nobr>Est. (Sched)</nobr></td>'
+    html += '<table><thead>';
+    html += '<td>'+ me.directionChicago +'<br>Train<br>'+ rev +'</td>';
+    html += '<td>Origin:<br>'+ me.stationNames.Origin      +'<br><nobr>Est. (Sched)</nobr></td>';
+    html += '<td>Destination:<br>'+ me.stationNames.Destination +'<br><nobr>Est. (Sched)</nobr></td>';
+    html += '</thead><tbody>';
     $.each(me.trainInfo.parsedData, function(train_num, trainObj) {
         if (!trainObj[me.stationRequest.Origin]) {
-            // Skip trains that don't stop at Origin, but 
-            // don't skip trains that already left origin but have not arrived at destination, 
-            // in order to handle case where person could be on a delayed train and wants to know arrival time.
+
+            // In general, skip trains that don't stop at Origin and stop at destination, but 
+            // in order to handle case where person could be on a delayed train and wants to know arrival time,
+            // show trains that already left origin but have not arrived at destination, as long as
+            // arrival time is before next origin departure time.
+            // This is a hack because we don't know history - don't know which train numbers we should care about.
             // Once we've displayed a table row containing an origin, don't show any 
             // more rows that have destination and not origin
             if (displayedFirstOrigin) return;
         } else {
             displayedFirstOrigin = true;
+            m = trainObj[me.stationRequest.Origin].match(/data-mins=\"(\d+)\"/);
+            if (m && m[1]) {
+                console.log("showTrainInfo() TODO mins till next train in origin", m[1]);
+            }
         }
         html += '<tr>';
         html += '<td>'+ train_num +'</td>';
@@ -253,7 +262,7 @@ MyCommuteTrain.prototype.showTrainInfo = function() {
         html += '<tr><td colspan=3>Invalid train data from API or bad args</td></tr>';
         me.trainInfo.valid = false;
     }
-    html += '</table>'
+    html += '</tbody></table>';
     $(me.selectorTrain).html(html);
     $('.lastUpdated').html(me.trainInfo.updated);
 };
@@ -384,7 +393,7 @@ MyCommuteTrain.prototype.metraDate2EpochMs = function(dateStr) {
 
 MyCommuteTrain.prototype.feedback = function(evt) {
     $(evt.target).addClass('fback-selected');
-    ga('send', 'event', 'munt', 'fback-'+$(evt.target).attr('ga'), 1);
+    ga('send', 'event', 'mct', 'fback-'+$(evt.target).attr('ga'), 1);
     setTimeout(function(){
         $(evt.target).removeClass('fback-selected');
         $('.feedback').slideToggle();
@@ -519,7 +528,7 @@ MyCommuteTrain.prototype.showStations = function(C,O) {
     $('.stations').html(html);
 };
 
-
+// TODO: Fix this - not all trains go to final outbout station, many do not during rush hour
 MyCommuteTrain.prototype.finalStation = function(stationReq) {
     var me = this;
     var finalStationNum = -1; // -1 means not known yet
