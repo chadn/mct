@@ -345,7 +345,7 @@ MyCommuteTrain.prototype.feedback = function(evt) {
     setTimeout(function() {
         $(evt.target).removeClass('fback-selected');
         $('.feedback').slideToggle();
-    }, 1500)
+    }, 1200)
 };
 
 
