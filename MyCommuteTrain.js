@@ -1,8 +1,9 @@
 //  http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route=Metra%20Milwaukee%20District%20North%20Line&metraRoute=Milwaukee%20District%20North&origStop=Lake%20Cook%20Rd&destStop=Healy
 
 /**
- * Web application
+ *  Web application
  *
+ * 
  * @returns javascript object of the app
  */
 var MyCommuteTrain = function() {
@@ -28,7 +29,6 @@ MyCommuteTrain.prototype.init = function() {
         O: getParameterByName('O'),
         D: getParameterByName('D')
     };
-
     me.initStations();
     var h = me.stationsHash;
     // stationRequest contains only valid Corridor, Origin, and Dest from query args  
@@ -281,6 +281,9 @@ MyCommuteTrain.prototype.uiTime = function(d, inclSecs) {
     }
     try {
         str = d.getHours() - (d.getHours() > 12 ? 12 : 0);
+        if (str == 0) {
+            str = 12;   
+        }
     } catch (e) {
         me.debug && console.log("uiTime() bad date", d, e);
         return '-';

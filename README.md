@@ -24,7 +24,7 @@ Displays how many minutes until the next train arrives at given Metra station, u
 
 ## Accuracy and Feedback
 
-The estimate from the API is not always accurate. For example, if there is a problem, Metra may not be sure when a train will arrive, so they provide a guesstimate.  
+The METRA API used is unofficial, reversed engineered. The estimate from the API is not always accurate, and not all METRA trains have working GPS. For example, if there is a problem, Metra may not be sure when a train will arrive, so they provide a guesstimate. 
 
 Click on Feedback link on right under the train table to let us know if estimate was early, late, on time, or varied (changed a few times).  
 
