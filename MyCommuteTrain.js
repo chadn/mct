@@ -74,12 +74,17 @@ MyCommuteTrain.prototype.go = function() {
     var me = this;
     if (me.stationRequest.Origin && me.stationRequest.Destination) {
 
-        // update rta link
+        // update rta and json links
         $('a.rtachicago').attr('href',
             "http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route="
             + me.stationRequest.Corridor 
             + "&metraRoute=&origStop="+ me.stationRequest.Origin
             + "&destStop=" + me.stationRequest.Destination);
+        $('a.metrarail-json').attr('href',
+            "http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json?line="
+            + me.stationRequest.Corridor 
+            + "&origin="+ me.stationRequest.Origin
+            + "&destination=" + me.stationRequest.Destination);
 
         // find time train departs Origin
         $('.loading').hide();

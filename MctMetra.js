@@ -1,5 +1,9 @@
 /**
  * Interface to Metra Servers
+ *
+ * Note: Looks like this is the new way to get data, need to update reqTrainData
+ * http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json?line=MD-N&origin=LAKECOOKRD&destination=HEALY
+ * 
  */
 
 
