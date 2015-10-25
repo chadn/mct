@@ -1,4 +1,4 @@
-//  http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route=Metra%20Milwaukee%20District%20North%20Line&metraRoute=Milwaukee%20District%20North&origStop=Lake%20Cook%20Rd&destStop=Healy
+// http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route=MD-N&metraRoute=&origStop=HEALY&destStop=LAKECOOKRD
 
 /**
  *  Web application
@@ -20,8 +20,6 @@ MyCommuteTrain.prototype.init = function() {
     me.selectorStatus = '.status';
     me.metra = MctMetra();
     me.refreshSecs = parseInt(getParameterByName('R'), 10) || 30;
-    me.reqUrl = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData';
-    me.reqType = 'POST';
     me.cookieName = 'metra';
     me.recentCount = 6;
     me.query = {
@@ -66,7 +64,7 @@ MyCommuteTrain.prototype.init = function() {
         me.goAgain();
     })
 
-    ga('send', 'event', 'munt', 'init');
+    ga('send', 'event', 'mct', 'init');
 
     me.debug && console.log('MyCommuteTrain init complete.');
     return this;
@@ -75,6 +73,13 @@ MyCommuteTrain.prototype.init = function() {
 MyCommuteTrain.prototype.go = function() {
     var me = this;
     if (me.stationRequest.Origin && me.stationRequest.Destination) {
+
+        // update rta link
+        $('a.rtachicago').attr('href',
+            "http://tripsweb.rtachicago.com/getNextTrainBusResults.htm?serviceBoard=METRA&route="
+            + me.stationRequest.Corridor 
+            + "&metraRoute=&origStop="+ me.stationRequest.Origin
+            + "&destStop=" + me.stationRequest.Destination);
 
         // find time train departs Origin
         $('.loading').hide();
@@ -515,6 +520,8 @@ MyCommuteTrain.prototype.initStations = function() {
         "stations":{"0":{"id":"BLUEISLAND","name":"Blue Island"},"1":{"id":"BURROAK","name":"Burr Oak"},"2":{"id":"ASHLAND","name":"Ashland"},"3":{"id":"RACINE","name":"Racine"},"4":{"id":"WPULLMAN","name":"West Pullman "},"5":{"id":"STEWARTRID","name":"Stewart Ridge "},"6":{"id":"STATEST","name":"State Street"},"7":{"id":"93RD-SC","name":" 93rd St. (South Chicago)"},"8":{"id":"87TH-SC","name":"87th St. (South Chicago)"},"9":{"id":"83RD-SC","name":"83rd St. (South Chicago)"},"10":{"id":"79TH-SC","name":"79th Street (Cheltenham)"},"11":{"id":"WINDSORPK","name":"Windsor Park "},"12":{"id":"SOUTHSHORE","name":"South Shore"},"13":{"id":"BRYNMAWR","name":"Bryn Mawr "},"14":{"id":"STONYISLND","name":"Stony Island "},"15":{"id":"UNIVERSITY","name":"University Park"},"16":{"id":"RICHTON","name":"Richton Park "},"17":{"id":"MATTESON","name":"Matteson"},"18":{"id":"211TH-UP","name":"211th Street (Lincoln Highway)"},"19":{"id":"OLYMPIA","name":"Olympia Fields"},"20":{"id":"FLOSSMOOR","name":"Flossmoor"},"21":{"id":"HOMEWOOD","name":"Homewood"},"22":{"id":"CALUMET","name":"Calumet"},"23":{"id":"HAZELCREST","name":"Hazel Crest"},"24":{"id":"HARVEY","name":"Harvey"},"25":{"id":"147TH-UP","name":"147th Street (Sibley Boulevard)"},"26":{"id":"IVANHOE","name":"Ivanhoe "},"27":{"id":"RIVERDALE","name":"Riverdale"},"28":{"id":"KENSINGTN","name":"Kensington / 115th Street"},"29":{"id":"111TH-UP","name":"111th Street (Pullman)"},"30":{"id":"107TH-UP","name":"107th Street"},"31":{"id":"103RD-UP","name":"103rd Street (Rosemoor)"},"32":{"id":"95TH-UP","name":"95th St., Chicago State Univ."},"33":{"id":"91ST-UP","name":"91st Street (Chesterfield)"},"34":{"id":"87TH-UP","name":"87th Street (Woodruff)"},"35":{"id":"83RD-UP","name":"83rd Street (Avalon Park)"},"36":{"id":"79TH-UP","name":"79th St., Chatham"},"37":{"id":"75TH-UP","name":"75th Street (Grand Crossing)"},"38":{"id":"63RD-UP","name":"63rd Street"},"39":{"id":"59TH-UP","name":"59th St., Univ. of Chicago"},"40":{"id":"55-56-57TH","name":"55th - 56th - 57th Street"},"41":{"id":"51ST-53RD","name":"51st / 53rd Street (Hyde Park)"},"42":{"id":"47TH-UP","name":"47th Street (Kenwood)  "},"43":{"id":"27TH-UP","name":"27th Street"},"44":{"id":"MCCORMICK","name":"McCormick Place"},"45":{"id":"18TH-UP","name":"18th Street"},"46":{"id":"MUSEUM","name":"Museum Campus / 11th Street"},"47":{"id":"VANBUREN","name":"Van Buren Street"},"48":{"id":"RANDOLPH","name":"Millennium Station"}}
         }
     ];
+
+    // Using above raw data (copy'pasted), create a more usable data structure, me.stationsHash
     me.stationsHash = {}
     $.each(me.stationsRaw, function(i, so) {
         me.stationsHash[so.C] = {};
